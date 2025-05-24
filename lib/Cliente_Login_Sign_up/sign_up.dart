@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:myturn/Cliente_Login_Sign_up/Services/auth.dart';
+import 'package:myturn/Cliente_Login_Sign_up/Success.dart';
 import 'package:myturn/Cliente_Login_Sign_up/login.dart';
 import 'package:myturn/Widget/button.dart';
+import 'package:myturn/Widget/snack_bar.dart';
 import 'package:myturn/Widget/text_field.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -14,6 +17,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController nameController = TextEditingController();
+  bool isLoading = false;
+
+  void signUpUser() async {
+    String res = await AuthServicews().signUpUser(
+      email: emailController.text.trim(),
+      password: passwordController.text.trim(),
+      name: nameController.text.trim(),
+    );
+
+    if (res == "success") {
+      setState(() {
+        isLoading = true;
+      });
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => SuccessScreen()),
+      );
+    } else {
+      setState(() {
+        isLoading = false;
+      });
+      showSnackBar(context, res);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     double height = MediaQuery.of(context).size.height;
@@ -30,7 +57,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 child: Image.asset("assets/images/sign.jpg"),
               ),
               TextFieldInpute(
-                textEditingController: emailController,
+                textEditingController: nameController,
                 hintText: "Enter your name",
                 icon: Icons.person,
               ),
@@ -58,7 +85,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
               ),
-              MyButton(onTab: () {}, text: "Sign Up"),
+              MyButton(onTab: signUpUser, text: "Sign Up"),
               SizedBox(height: height / 15),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
