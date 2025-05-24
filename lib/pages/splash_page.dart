@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:myturn/Cliente_Login_Sign_up/login.dart';
+import 'package:myturn/Cliente_Login_Sign_up/sign_up.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -71,6 +73,12 @@ class _SplashPageState extends State<SplashPage> {
                               setState(() {
                                 isClientSelected = true;
                               });
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const LoginScreen(),
+                                ),
+                              );
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),

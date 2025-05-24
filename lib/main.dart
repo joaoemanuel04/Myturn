@@ -1,7 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'pages/splash_page.dart';
-import 'package:myturn/Cliente_Login_Sign_up/login.dart';
+//import 'package:myturn/Cliente_Login_Sign_up/login.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
