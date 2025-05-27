@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:myturn/Cliente_Login_Sign_up/login.dart';
 import 'package:myturn/Cliente_Login_Sign_up/sign_up.dart';
+import 'package:myturn/Estabelecimento_Login_Sing_Up/estabelecimento_login.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -113,6 +114,14 @@ class _SplashPageState extends State<SplashPage> {
                               setState(() {
                                 isClientSelected = false;
                               });
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (context) =>
+                                          const EstabelecimentoLoginScreen(),
+                                ),
+                              );
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),
