@@ -19,6 +19,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController nameController = TextEditingController();
   bool isLoading = false;
 
+  void despose() {
+    super.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    nameController.dispose();
+  }
+
   void signUpUser() async {
     String res = await AuthServicews().signUpUser(
       email: emailController.text.trim(),
@@ -69,10 +76,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
               TextFieldInpute(
                 textEditingController: passwordController,
                 hintText: "Enter your password",
+                ispass: true,
                 icon: Icons.lock,
               ),
               const Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 35),
+                padding: EdgeInsets.symmetric(horizontal: 35),
                 child: Align(
                   alignment: Alignment.centerRight,
                   child: Text(

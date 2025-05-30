@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:myturn/Cliente_Login_Sign_up/Services/auth.dart';
+import 'package:myturn/Cliente_Login_Sign_up/Success.dart';
 import 'package:myturn/Cliente_Login_Sign_up/sign_up.dart';
 import 'package:myturn/Widget/button.dart';
+import 'package:myturn/Widget/snack_bar.dart';
 import 'package:myturn/Widget/text_field.dart';
+import 'package:myturn/esqueceu_senha/esqueceu_senha.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,6 +17,29 @@ class LoginScreen extends StatefulWidget {
 class _SignupScreenState extends State<LoginScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  bool isLoading = false;
+
+  void loginUsers() async {
+    String res = await AuthServicews().loginUser(
+      email: emailController.text.trim(),
+      password: passwordController.text.trim(),
+    );
+
+    if (res == "success") {
+      setState(() {
+        isLoading = true;
+      });
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => SuccessScreen()),
+      );
+    } else {
+      setState(() {
+        isLoading = false;
+      });
+      showSnackBar(context, res);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     double height = MediaQuery.of(context).size.height;
@@ -34,25 +61,13 @@ class _SignupScreenState extends State<LoginScreen> {
                 icon: Icons.email,
               ),
               TextFieldInpute(
+                ispass: true,
                 textEditingController: passwordController,
                 hintText: "Enter your password",
                 icon: Icons.lock,
               ),
-              const Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 35),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    "Esqueceu a senha?",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.blue,
-                    ),
-                  ),
-                ),
-              ),
-              MyButton(onTab: () {}, text: "Log In"),
+              const ForgotPassword(),
+              MyButton(onTab: loginUsers, text: "Log In"),
               SizedBox(height: height / 15),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
