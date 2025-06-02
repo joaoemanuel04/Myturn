@@ -6,6 +6,7 @@ import 'package:myturn/Widget/button.dart';
 import 'package:myturn/Widget/snack_bar.dart';
 import 'package:myturn/Widget/text_field.dart';
 import 'package:myturn/esqueceu_senha/esqueceu_senha.dart';
+import 'package:myturn/login_com_google/google_auth.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -91,6 +92,46 @@ class _SignupScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ],
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 25,
+                  vertical: 10,
+                ),
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueGrey,
+                  ),
+                  onPressed: () async {
+                    await FirebaseServices().signInWithGoogle();
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SuccessScreen(),
+                      ),
+                    );
+                  },
+                  child: Row(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Image.network(
+                          "https://ouch-cdn2.icons8.com/VGHyfDgzIiyEwg3RIll1nYupfj653vnEPRLr0AeoJ8g/rs:fit:456:456/czM6Ly9pY29uczgu/b3VjaC1wcm9kLmFz/c2V0cy9wbmcvODg2/LzRjNzU2YThjLTQx/MjgtNGZlZS04MDNl/LTAwMTM0YzEwOTMy/Ny5wbmc.png",
+                          height: 35,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        "Continue with Google",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),

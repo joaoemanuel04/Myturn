@@ -12,7 +12,20 @@
           "package_name": "com.example.myturn"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "790208669664-kgo3b0k4ircntcd56gpn6uqkgipmbrrs.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.myturn",
+            "certificate_hash": "421b5a67d9541d557e3d59862ccb0151c8acbccb"
+          }
+        },
+        {
+          "client_id": "790208669664-lod949jfocfjrr1ce6ecgd0aa8n8rhkb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "***REMOVED***"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "790208669664-lod949jfocfjrr1ce6ecgd0aa8n8rhkb.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
