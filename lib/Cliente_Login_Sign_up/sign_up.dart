@@ -1,4 +1,6 @@
+import 'package:brasil_fields/brasil_fields.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:myturn/Cliente_Login_Sign_up/Services/auth.dart';
 import 'package:myturn/Cliente_Login_Sign_up/Success.dart';
 import 'package:myturn/Cliente_Login_Sign_up/login.dart';
@@ -16,34 +18,53 @@ class SignUpScreen extends StatefulWidget {
 class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
   final TextEditingController nameController = TextEditingController();
+  final TextEditingController phoneController = TextEditingController();
+  final TextEditingController birthDateController = TextEditingController();
+
   bool isLoading = false;
 
-  void despose() {
+  @override
+  void dispose() {
     super.dispose();
     emailController.dispose();
     passwordController.dispose();
+    confirmPasswordController.dispose();
     nameController.dispose();
+    phoneController.dispose();
+    birthDateController.dispose();
   }
 
   void signUpUser() async {
+    if (passwordController.text.trim() !=
+        confirmPasswordController.text.trim()) {
+      showSnackBar(context, "As senhas não conferem!");
+      return;
+    }
+
+    setState(() => isLoading = true);
+
     String res = await AuthServicews().signUpUser(
       email: emailController.text.trim(),
       password: passwordController.text.trim(),
       name: nameController.text.trim(),
+      phone: phoneController.text.trim(),
+      birthDate: birthDateController.text.trim(),
     );
 
+    setState(() => isLoading = false);
+
     if (res == "success") {
-      setState(() {
-        isLoading = true;
-      });
+      showSnackBar(
+        context,
+        "Cadastro realizado! Verifique seu email para ativar a conta.",
+      );
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => SuccessScreen()),
       );
     } else {
-      setState(() {
-        isLoading = false;
-      });
       showSnackBar(context, res);
     }
   }
@@ -54,54 +75,64 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: SizedBox(
+        child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               SizedBox(
                 width: double.infinity,
-                height: height / 2.7,
+                height: height / 3,
                 child: Image.asset("assets/images/sign.jpg"),
               ),
               TextFieldInpute(
                 textEditingController: nameController,
-                hintText: "Enter your name",
+                hintText: "Nome completo",
                 icon: Icons.person,
               ),
               TextFieldInpute(
+                textEditingController: phoneController,
+                hintText: "Celular (ex: (99) 99999-9999)",
+                icon: Icons.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  TelefoneInputFormatter(),
+                ],
+              ),
+              TextFieldInpute(
+                textEditingController: birthDateController,
+                hintText: "Data de Nascimento (dd/mm/aaaa)",
+                icon: Icons.cake,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  DataInputFormatter(),
+                ],
+              ),
+              TextFieldInpute(
                 textEditingController: emailController,
-                hintText: "Enter your email",
+                hintText: "Email",
                 icon: Icons.email,
               ),
               TextFieldInpute(
                 textEditingController: passwordController,
-                hintText: "Enter your password",
+                hintText: "Senha",
                 ispass: true,
                 icon: Icons.lock,
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 35),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    "Esqueceu a senha?",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.blue,
-                    ),
-                  ),
-                ),
+              TextFieldInpute(
+                textEditingController: confirmPasswordController,
+                hintText: "Confirme a senha",
+                ispass: true,
+                icon: Icons.lock_outline,
               ),
-              MyButton(onTab: signUpUser, text: "Sign Up"),
+
+              isLoading
+                  ? const CircularProgressIndicator()
+                  : MyButton(onTab: signUpUser, text: "Cadastrar"),
               SizedBox(height: height / 15),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
-                    "Already have an account?",
-                    style: TextStyle(fontSize: 16),
-                  ),
+                  const Text("Já tem uma conta?"),
                   GestureDetector(
                     onTap: () {
                       Navigator.push(
@@ -111,7 +142,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                       );
                     },
-                    child: Text(
+                    child: const Text(
                       " Login",
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),

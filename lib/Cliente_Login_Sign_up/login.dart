@@ -1,3 +1,5 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:myturn/Cliente_Login_Sign_up/Services/auth.dart';
 import 'package:myturn/Cliente_Login_Sign_up/Success.dart';
@@ -7,6 +9,7 @@ import 'package:myturn/Widget/snack_bar.dart';
 import 'package:myturn/Widget/text_field.dart';
 import 'package:myturn/esqueceu_senha/esqueceu_senha.dart';
 import 'package:myturn/login_com_google/google_auth.dart';
+import 'package:myturn/login_com_google/google_informacoes.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -103,13 +106,39 @@ class _SignupScreenState extends State<LoginScreen> {
                     backgroundColor: Colors.blueGrey,
                   ),
                   onPressed: () async {
-                    await FirebaseServices().signInWithGoogle();
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SuccessScreen(),
-                      ),
-                    );
+                    User? user = await FirebaseServices().signInWithGoogle();
+                    if (user != null) {
+                      // Referência no Realtime Database para o usuário
+                      final ref = FirebaseDatabase.instance.ref(
+                        'users/${user.uid}',
+                      );
+
+                      final snapshot = await ref.get();
+
+                      if (!snapshot.exists) {
+                        // Se não existe cadastro, vai para tela de info extra
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (_) => GoogleExtraInfoScreen(
+                                  email: user.email ?? '',
+                                ),
+                          ),
+                        );
+                      } else {
+                        // Se já existe cadastro, vai direto para SuccessScreen
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SuccessScreen(),
+                          ),
+                        );
+                      }
+                    } else {
+                      // Opcional: mostrar erro se login falhar
+                      showSnackBar(context, "Erro ao fazer login com Google");
+                    }
                   },
                   child: Row(
                     children: [
