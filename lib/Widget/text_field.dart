@@ -8,6 +8,7 @@ class TextFieldInpute extends StatefulWidget {
   final String hintText;
   final IconData icon;
   final List<TextInputFormatter>? inputFormatters;
+  final bool enabled;
 
   const TextFieldInpute({
     super.key,
@@ -16,6 +17,7 @@ class TextFieldInpute extends StatefulWidget {
     required this.hintText,
     required this.icon,
     this.inputFormatters,
+    this.enabled = true,
   });
 
   @override
@@ -50,6 +52,7 @@ class _TextFieldInputeState extends State<TextFieldInpute> {
         controller: widget.textEditingController,
         inputFormatters: widget.inputFormatters,
         keyboardType: keyboardType,
+        enabled: widget.enabled,
         decoration: InputDecoration(
           hintText: widget.hintText,
           hintStyle: const TextStyle(color: Colors.black45, fontSize: 18),
