@@ -207,10 +207,29 @@ class _EstabelecimentoSignUpScreenState
       isLoading = true;
     });
 
+    // ***** ALTERAÇÃO PRINCIPAL: REMOVA O "as String" *****
     String res = await EstabelecimentoAuthService().signUpEstabelecimento(
       email: emailController.text.trim(),
       password: passwordController.text.trim(),
       name: nameController.text.trim(),
+      categoria: categoriaController.text.trim(),
+      cnpj: cnpjController.text.trim(),
+      celular: celularController.text.trim(),
+      estado: estadoController.text.trim(),
+      cidade: cidadeController.text.trim(),
+      horarios: horarioInicioControllers.map((dia, controller) {
+        // Agora o nome `horarioControllers` estava errado
+        return MapEntry(
+          dia,
+          {
+            'inicio': horarioInicioControllers[dia]!.text.trim(),
+            'fim': horarioFimControllers[dia]!.text.trim(),
+            'fechado': fechadoDias[dia]!,
+            'vinteQuatroHoras': vinteQuatroHorasDias[dia]!,
+          },
+          // A conversão "as String" foi removida daqui!
+        );
+      }),
     );
 
     setState(() {
@@ -218,6 +237,7 @@ class _EstabelecimentoSignUpScreenState
     });
 
     if (res == "success") {
+      // ... (seu código continua igual)
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (context) => const EstabelecimentoSuccessScreen(),

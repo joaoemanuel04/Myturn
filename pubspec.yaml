@@ -33,6 +33,8 @@ dependencies:
   brasil_fields: ^1.18.0
   shared_preferences: ^2.5.3
   br_validators: ^2.0.4
+  geolocator: ^14.0.1
+  geocoding: ^4.0.0
 
 dev_dependencies:
   flutter_test:
