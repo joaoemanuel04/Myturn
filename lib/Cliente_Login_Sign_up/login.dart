@@ -10,6 +10,7 @@ import 'package:myturn/Widget/text_field.dart';
 import 'package:myturn/esqueceu_senha/esqueceu_senha.dart';
 import 'package:myturn/login_com_google/google_auth.dart';
 import 'package:myturn/login_com_google/google_informacoes.dart';
+import 'package:myturn/pages/cliente/home_cliente.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,9 +34,9 @@ class _SignupScreenState extends State<LoginScreen> {
       setState(() {
         isLoading = true;
       });
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => SuccessScreen()),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (context) => HomeScreen()));
     } else {
       setState(() {
         isLoading = false;

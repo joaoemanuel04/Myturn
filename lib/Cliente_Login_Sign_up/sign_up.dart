@@ -61,9 +61,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         context,
         "Cadastro realizado! Verifique seu email para ativar a conta.",
       );
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => SuccessScreen()),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (context) => LoginScreen()));
     } else {
       showSnackBar(context, res);
     }
