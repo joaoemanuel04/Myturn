@@ -2,11 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:intl/intl.dart'; // Para formatar a hora
+import 'package:intl/intl.dart';
 
-// --- 1. MODELO DE DADOS ---
-// É uma boa prática criar uma classe para representar seus dados.
-// Isso torna o código mais limpo e seguro do que usar Maps.
+// O modelo de dados para o cliente na fila
 class ClienteNaFila {
   final String uid;
   final String nome;
@@ -18,10 +16,10 @@ class ClienteNaFila {
     required this.horaEntrada,
   });
 
-  factory ClienteNaFila.fromSnapshot(DataSnapshot snapshot) {
-    final map = Map<String, dynamic>.from(snapshot.value as Map);
+  // ERRO 1 CORRIGIDO: Substituído `fromSnapshot` por `fromMap` para simplificar.
+  factory ClienteNaFila.fromMap(String uid, Map<String, dynamic> map) {
     return ClienteNaFila(
-      uid: snapshot.key!,
+      uid: uid,
       nome: map['nome'] ?? 'Cliente anônimo',
       horaEntrada:
           DateTime.tryParse(map['horaEntrada'] ?? '') ?? DateTime.now(),
@@ -29,7 +27,7 @@ class ClienteNaFila {
   }
 }
 
-// --- 2. A TELA PRINCIPAL (WIDGET) ---
+// O Widget principal da tela
 class EstabelecimentoHomeScreen extends StatefulWidget {
   const EstabelecimentoHomeScreen({super.key});
 
@@ -39,18 +37,20 @@ class EstabelecimentoHomeScreen extends StatefulWidget {
 }
 
 class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
-  // --- 3. VARIÁVEIS DE ESTADO E REFERÊNCIAS ---
+  // Variáveis de controle e estado
   final _auth = FirebaseAuth.instance;
   late final DatabaseReference _estabelecimentoRef;
   late final DatabaseReference _filaRef;
+  late final DatabaseReference _metricasRef;
 
   StreamSubscription? _filaSubscription;
   StreamSubscription? _statusFilaSubscription;
+  StreamSubscription? _metricasSubscription;
 
   List<ClienteNaFila> _fila = [];
   bool _isFilaAberta = false;
   bool _isLoading = true;
-  int _atendidosHoje = 0; // Contador simples para o dashboard
+  int _atendidosHoje = 0;
 
   @override
   void initState() {
@@ -60,34 +60,43 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
 
   @override
   void dispose() {
-    // É ESSENCIAL cancelar os ouvintes para evitar vazamentos de memória.
+    // Cancela todos os listeners para evitar vazamentos de memória
     _filaSubscription?.cancel();
     _statusFilaSubscription?.cancel();
+    _metricasSubscription?.cancel();
     super.dispose();
   }
 
-  // --- 4. LÓGICA DE NEGÓCIO E FIREBASE ---
+  // --- SEÇÃO DE LÓGICA E FIREBASE ---
 
   void _inicializarDados() {
     final user = _auth.currentUser;
-    if (user == null) {
-      // Se por algum motivo não houver usuário logado, volta para a tela de login.
-      // Adicione sua lógica de navegação de logout aqui.
-      return;
-    }
+    if (user == null) return;
 
-    // Define as referências principais do Firebase com base no UID do estabelecimento
     _estabelecimentoRef = FirebaseDatabase.instance.ref(
       'estabelecimentos/${user.uid}',
     );
     _filaRef = FirebaseDatabase.instance.ref('filas/${user.uid}/clientes');
+    _metricasRef = _estabelecimentoRef.child('metricas');
 
     _escutarStatusDaFila();
     _escutarMudancasDaFila();
+    _escutarMetricas(); // Escuta o contador de atendidos
+  }
+
+  void _escutarMetricas() {
+    _metricasSubscription = _metricasRef.child('atendidosHoje').onValue.listen((
+      event,
+    ) {
+      if (mounted) {
+        setState(() {
+          _atendidosHoje = (event.snapshot.value as int?) ?? 0;
+        });
+      }
+    });
   }
 
   void _escutarStatusDaFila() {
-    // Ouve em tempo real se a fila está aberta ou fechada
     _statusFilaSubscription = _estabelecimentoRef
         .child('filaAberta')
         .onValue
@@ -95,38 +104,31 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
           if (mounted) {
             setState(() {
               _isFilaAberta = (event.snapshot.value as bool?) ?? false;
-              _isLoading = false; // A primeira carga de dados terminou
+              _isLoading = false; // Finaliza o loading inicial
             });
           }
         });
   }
 
   void _escutarMudancasDaFila() {
-    // Ouve em tempo real as mudanças na lista de clientes
     _filaSubscription = _filaRef.onValue.listen((event) {
-      if (event.snapshot.exists) {
+      if (event.snapshot.exists && event.snapshot.value is Map) {
         final data = Map<String, dynamic>.from(event.snapshot.value as Map);
+        // ERRO 1 CORRIGIDO: Usando o novo factory `fromMap`.
         final novaFila =
-            data.entries.map((e) {
-              // Reutiliza o factory constructor do nosso modelo
-              return ClienteNaFila.fromSnapshot(e.value);
-            }).toList();
-
-        // Ordena pela hora de entrada para garantir a ordem correta
+            data.entries
+                .map(
+                  (e) => ClienteNaFila.fromMap(
+                    e.key,
+                    Map<String, dynamic>.from(e.value),
+                  ),
+                )
+                .toList();
         novaFila.sort((a, b) => a.horaEntrada.compareTo(b.horaEntrada));
-
-        if (mounted) {
-          setState(() {
-            _fila = novaFila;
-          });
-        }
+        if (mounted) setState(() => _fila = novaFila);
       } else {
-        // Se o nó 'clientes' não existe, a fila está vazia
-        if (mounted) {
-          setState(() {
-            _fila = [];
-          });
-        }
+        // Se não houver clientes, a fila está vazia
+        if (mounted) setState(() => _fila = []);
       }
     });
   }
@@ -134,34 +136,25 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
   Future<void> _alternarStatusFila(bool novoStatus) async {
     try {
       await _estabelecimentoRef.child('filaAberta').set(novoStatus);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(novoStatus ? 'Fila Aberta!' : 'Fila Fechada!'),
-            backgroundColor: novoStatus ? Colors.green : Colors.orange,
-          ),
-        );
-      }
     } catch (e) {
       _mostrarErro("Erro ao alterar status da fila.");
     }
   }
 
   Future<void> _removerCliente(String clienteUid) async {
-    // Referências para os nós que precisam ser deletados
     final clienteNaFilaRef = _filaRef.child(clienteUid);
     final clienteNaReservaRef = FirebaseDatabase.instance.ref(
       'minhasReservasPorUsuario/$clienteUid/${_auth.currentUser!.uid}',
     );
-
+    // ERRO 2 CORRIGIDO: Adicionado Try/Catch para tratar possíveis falhas.
     try {
-      // Remove ambos em paralelo para otimizar
+      // Remove o cliente da fila e da lista de reservas dele em paralelo
       await Future.wait([
         clienteNaFilaRef.remove(),
         clienteNaReservaRef.remove(),
       ]);
     } catch (e) {
-      _mostrarErro("Erro ao remover cliente.");
+      _mostrarErro("Não foi possível remover o cliente.");
     }
   }
 
@@ -169,15 +162,25 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
     if (_fila.isEmpty) return;
 
     final proximoCliente = _fila.first;
-    await _removerCliente(proximoCliente.uid);
 
-    if (mounted) {
-      setState(() {
-        _atendidosHoje++; // Incrementa o contador local
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${proximoCliente.nome} foi chamado(a)!')),
-      );
+    // Usa uma transação para incrementar o contador no Firebase de forma segura
+    final TransactionResult result = await _metricasRef
+        .child('atendidosHoje')
+        .runTransaction((Object? currentData) {
+          int currentValue = (currentData as int?) ?? 0;
+          return Transaction.success(currentValue + 1);
+        });
+
+    // ERRO 3 CORRIGIDO: Cliente só é removido se a transação for bem-sucedida.
+    if (result.committed) {
+      await _removerCliente(proximoCliente.uid);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${proximoCliente.nome} foi chamado(a)!')),
+        );
+      }
+    } else {
+      _mostrarErro("Falha ao chamar o próximo. Tente novamente.");
     }
   }
 
@@ -189,31 +192,30 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
     }
   }
 
-  // --- 5. CONSTRUÇÃO DA INTERFACE (UI) ---
+  // --- SEÇÃO DE CONSTRUÇÃO DA INTERFACE (UI) ---
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor:
+          Theme.of(context).colorScheme.background, // Cor de fundo do tema
       appBar: AppBar(
-        title: Text('Painel de Controle'),
+        title: const Text('Painel de Controle'),
         actions: [
-          // Lógica para o menu de opções
           PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'perfil') {
-                // Navegue para a tela de editar perfil do estabelecimento
-                // Navigator.pushNamed(context, '/estabelecimento/perfil');
-              } else if (value == 'sair') {
-                _auth.signOut();
-                // Navegue de volta para a tela de login
-                // Navigator.pushReplacementNamed(context, '/');
+            onSelected: (value) async {
+              // ERRO 4 CORRIGIDO: `onSelected` agora é async.
+              if (value == 'sair') {
+                await _auth.signOut();
+                if (!mounted) return; // Checagem de segurança
+                // Retorna para a tela inicial e remove todas as outras rotas
+                Navigator.of(
+                  context,
+                ).pushNamedAndRemoveUntil('/', (route) => false);
               }
             },
             itemBuilder:
                 (BuildContext context) => <PopupMenuEntry<String>>[
-                  const PopupMenuItem<String>(
-                    value: 'perfil',
-                    child: Text('Editar Perfil'),
-                  ),
                   const PopupMenuItem<String>(
                     value: 'sair',
                     child: Text('Sair'),
@@ -225,166 +227,260 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : Padding(
+              : ListView(
+                // Usando ListView para permitir rolagem de todo o conteúdo
                 padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    _buildControleFila(),
-                    const SizedBox(height: 16),
-                    _buildDashboard(),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Fila de Espera',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Divider(),
-                    Expanded(child: _buildListaFila()),
-                  ],
-                ),
+                children: [
+                  _buildControleFilaCard(),
+                  const SizedBox(height: 24),
+                  _buildProximoClienteCard(),
+                  const SizedBox(height: 24),
+                  _buildMetricasDashboard(),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Aguardando na Fila',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildFilaDeEsperaList(),
+                ],
               ),
-      // O botão principal fica "flutuando" na parte de baixo para fácil acesso
-      bottomNavigationBar: _buildBotaoChamarProximo(),
     );
   }
 
-  // --- 6. WIDGETS AUXILIARES PARA ORGANIZAR O CÓDIGO ---
+  // --- WIDGETS AUXILIARES PARA COMPONENTIZAR A UI ---
 
-  Widget _buildControleFila() {
+  Widget _buildControleFilaCard() {
     return Card(
       elevation: 2,
-      child: SwitchListTile(
-        title: Text(
-          'Status da Fila',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(
-          _isFilaAberta
-              ? 'Aberta para novos clientes'
-              : 'Fechada para novos clientes',
-        ),
-        value: _isFilaAberta,
-        onChanged: _alternarStatusFila,
-        activeColor: Colors.green,
-      ),
-    );
-  }
-
-  Widget _buildDashboard() {
-    return Card(
-      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _buildMetrica('Pessoas na Fila', _fila.length.toString()),
-            _buildMetrica('Atendidos Hoje', _atendidosHoje.toString()),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'STATUS DA FILA',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _isFilaAberta ? 'Aberta' : 'Fechada',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color:
+                        _isFilaAberta
+                            ? Colors.green.shade600
+                            : Colors.red.shade600,
+                  ),
+                ),
+              ],
+            ),
+            Switch(
+              value: _isFilaAberta,
+              onChanged: _alternarStatusFila,
+              activeTrackColor: Colors.green.shade200,
+              activeColor: Colors.green.shade600,
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMetrica(String titulo, String valor) {
-    return Column(
-      children: [
-        Text(
-          titulo,
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+  Widget _buildProximoClienteCard() {
+    final proximoCliente = _fila.isNotEmpty ? _fila.first : null;
+
+    return Card(
+      elevation: 4,
+      color: Theme.of(context).primaryColor, // Cor de destaque do tema
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'PRÓXIMO A SER CHAMADO',
+              style: TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              proximoCliente?.nome ?? 'Ninguém na fila',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            if (proximoCliente != null)
+              Text(
+                'Entrou às ${DateFormat('HH:mm').format(proximoCliente.horaEntrada)}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14, color: Colors.white70),
+              ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.campaign_outlined),
+              label: const Text('CHAMAR PRÓXIMO'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Theme.of(context).primaryColor,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              // O botão fica desabilitado se não houver ninguém na fila
+              onPressed: proximoCliente != null ? _chamarProximoCliente : null,
+            ),
+          ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          valor,
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildMetricasDashboard() {
+    return Row(
+      children: [
+        Expanded(
+          child: _InfoCard(
+            titulo: 'Na Fila',
+            valor: _fila.length.toString(),
+            icone: Icons.people_alt_outlined,
+            cor: Colors.orange,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _InfoCard(
+            titulo: 'Atendidos Hoje',
+            valor: _atendidosHoje.toString(),
+            icone: Icons.check_circle_outline,
+            cor: Colors.blue,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildListaFila() {
-    if (_fila.isEmpty) {
-      return const Center(
-        child: Text(
-          'A fila está vazia.',
-          style: TextStyle(fontSize: 16, color: Colors.grey),
+  Widget _buildFilaDeEsperaList() {
+    // Se a fila tem 0 ou 1 pessoa, não há "próximos" a serem mostrados na lista
+    if (_fila.length <= 1) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32.0),
+        child: Center(
+          child: Text(
+            'Não há mais ninguém aguardando.',
+            style: TextStyle(color: Colors.grey),
+          ),
         ),
       );
     }
 
+    // Começa do segundo item da lista, pois o primeiro já está no card de destaque
+    final filaDeEspera = _fila.sublist(1);
+
     return ListView.builder(
-      itemCount: _fila.length,
+      shrinkWrap: true, // Essencial para uma ListView dentro de outra rolagem
+      physics:
+          const NeverScrollableScrollPhysics(), // Desabilita a rolagem da lista interna
+      itemCount: filaDeEspera.length,
       itemBuilder: (context, index) {
-        final cliente = _fila[index];
+        final cliente = filaDeEspera[index];
         return Card(
+          // ERRO 5 CORRIGIDO: Adicionada uma Key para otimizar o rebuild da lista.
+          key: ValueKey(cliente.uid),
+          elevation: 0,
           margin: const EdgeInsets.symmetric(vertical: 4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: ListTile(
-            leading: CircleAvatar(child: Text((index + 1).toString())),
+            leading: CircleAvatar(
+              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+              child: Text(
+                '#${index + 2}', // Posição real na fila
+                style: TextStyle(
+                  color: Theme.of(context).primaryColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
             title: Text(
               cliente.nome,
-              style: TextStyle(fontWeight: FontWeight.w500),
+              style: const TextStyle(fontWeight: FontWeight.w500),
             ),
             subtitle: Text(
               'Entrou às: ${DateFormat('HH:mm').format(cliente.horaEntrada)}',
             ),
             trailing: IconButton(
-              icon: Icon(Icons.person_remove, color: Colors.red.shade400),
+              icon: const Icon(
+                Icons.person_remove_outlined,
+                color: Colors.redAccent,
+              ),
+              onPressed: () => _removerCliente(cliente.uid),
               tooltip: 'Remover da fila',
-              onPressed: () {
-                // Adiciona um diálogo de confirmação para evitar remoção acidental
-                showDialog(
-                  context: context,
-                  builder:
-                      (ctx) => AlertDialog(
-                        title: Text('Confirmar Remoção'),
-                        content: Text(
-                          'Deseja remover ${cliente.nome} da fila?',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(ctx).pop(),
-                            child: Text('Cancelar'),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              _removerCliente(cliente.uid);
-                              Navigator.of(ctx).pop();
-                            },
-                            child: Text(
-                              'Remover',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        ],
-                      ),
-                );
-              },
             ),
           ),
         );
       },
     );
   }
+}
 
-  Widget _buildBotaoChamarProximo() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: ElevatedButton.icon(
-        icon: const Icon(Icons.campaign),
-        label: const Text('CHAMAR PRÓXIMO'),
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          backgroundColor: Theme.of(context).primaryColor,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+// Widget reutilizável para os cards de informação do dashboard
+class _InfoCard extends StatelessWidget {
+  final String titulo;
+  final String valor;
+  final IconData icone;
+  final Color cor;
+
+  const _InfoCard({
+    super.key,
+    required this.titulo,
+    required this.valor,
+    required this.icone,
+    required this.cor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // ERRO 6 CORRIGIDO: Verifica se a cor é MaterialColor antes de usar shades.
+    final Color corValor =
+        cor is MaterialColor ? (cor as MaterialColor).shade800 : cor;
+    final Color corTitulo =
+        cor is MaterialColor ? (cor as MaterialColor).shade700 : cor;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icone, color: cor, size: 28),
+          const SizedBox(height: 12),
+          Text(
+            valor,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: corValor,
+            ),
           ),
-        ),
-        // O botão é desabilitado se a fila estiver vazia
-        onPressed: _fila.isEmpty ? null : _chamarProximoCliente,
+          Text(titulo, style: TextStyle(color: corTitulo)),
+        ],
       ),
     );
   }

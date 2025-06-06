@@ -2,171 +2,253 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:myturn/Cliente_Login_Sign_up/Services/auth.dart';
-import 'package:myturn/Cliente_Login_Sign_up/Success.dart';
 import 'package:myturn/Cliente_Login_Sign_up/sign_up.dart';
-import 'package:myturn/Widget/button.dart';
 import 'package:myturn/Widget/snack_bar.dart';
 import 'package:myturn/Widget/text_field.dart';
 import 'package:myturn/esqueceu_senha/esqueceu_senha.dart';
 import 'package:myturn/login_com_google/google_auth.dart';
 import 'package:myturn/login_com_google/google_informacoes.dart';
 import 'package:myturn/pages/cliente/home_cliente.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _SignupScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _SignupScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   bool isLoading = false;
 
-  void loginUsers() async {
-    String res = await AuthServicews().loginUser(
-      email: emailController.text.trim(),
-      password: passwordController.text.trim(),
-    );
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
 
-    if (res == "success") {
-      setState(() {
-        isLoading = true;
-      });
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (context) => HomeScreen()));
-    } else {
-      setState(() {
-        isLoading = false;
-      });
-      showSnackBar(context, res);
+  // Lógica de login com E-mail e Senha
+  Future<void> _loginUser() async {
+    final connectivityResult = await (Connectivity().checkConnectivity());
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      if (mounted) showSnackBar(context, "Sem conexão com a internet.");
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      String res = await AuthServicews().loginUser(
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
+      );
+      if (res == "success" && mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      } else {
+        if (mounted) showSnackBar(context, res);
+      }
+    } catch (e) {
+      if (mounted)
+        showSnackBar(context, "Ocorreu um erro inesperado. Tente novamente.");
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  // Lógica de login com Google (agora implementada)
+  Future<void> _googleSignIn() async {
+    final connectivityResult = await (Connectivity().checkConnectivity());
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      if (mounted) showSnackBar(context, "Sem conexão com a internet.");
+      return;
+    }
+
+    setState(() => isLoading = true);
+    try {
+      User? user = await FirebaseServices().signInWithGoogle();
+
+      if (user != null && mounted) {
+        // Verifica se o usuário já existe no banco de dados
+        final userRef = FirebaseDatabase.instance.ref('users/${user.uid}');
+        final snapshot = await userRef.get();
+
+        if (snapshot.exists) {
+          // Usuário já existe, vai para a home
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
+        } else {
+          // Primeiro login com Google, pede informações extras
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => GoogleExtraInfoScreen(email: user.email!),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) showSnackBar(context, "Erro ao fazer login com Google.");
+    } finally {
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    double height = MediaQuery.of(context).size.height;
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
-        child: SizedBox(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(
-                width: double.infinity,
-                height: height / 2.7,
-                child: Image.asset("assets/images/logo.png"),
-              ),
+              SizedBox(height: MediaQuery.of(context).size.height * 0.1),
+
+              const _LoginHeader(),
+
+              SizedBox(height: MediaQuery.of(context).size.height * 0.08),
+
+              // Formulário
               TextFieldInpute(
                 textEditingController: emailController,
-                hintText: "Enter your email",
-                icon: Icons.email,
+                hintText: "Seu e-mail",
+                icon: Icons.alternate_email,
               ),
+              const SizedBox(height: 16),
               TextFieldInpute(
                 ispass: true,
                 textEditingController: passwordController,
-                hintText: "Enter your password",
-                icon: Icons.lock,
+                hintText: "Sua senha",
+                icon: Icons.lock_outline,
               ),
+              const SizedBox(height: 12),
               const ForgotPassword(),
-              MyButton(onTab: loginUsers, text: "Log In"),
-              SizedBox(height: height / 15),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "Dont't have an accunt?",
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SignUpScreen(),
-                        ),
-                      );
-                    },
-                    child: Text(
-                      " SignUp",
-                      style: TextStyle(fontWeight: FontWeight.bold),
+              const SizedBox(height: 24),
+
+              // Botões de Ação
+              if (isLoading)
+                const Center(child: CircularProgressIndicator())
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ElevatedButton(
+                      onPressed: _loginUser,
+                      child: const Text('Entrar'),
                     ),
-                  ),
-                ],
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 25,
-                  vertical: 10,
+                    const SizedBox(height: 20),
+                    const _OrDivider(),
+                    const SizedBox(height: 20),
+                    _GoogleSignInButton(onPressed: _googleSignIn),
+                  ],
                 ),
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueGrey,
-                  ),
-                  onPressed: () async {
-                    User? user = await FirebaseServices().signInWithGoogle();
-                    if (user != null) {
-                      // Referência no Realtime Database para o usuário
-                      final ref = FirebaseDatabase.instance.ref(
-                        'users/${user.uid}',
-                      );
 
-                      final snapshot = await ref.get();
+              const SizedBox(height: 30),
 
-                      if (!snapshot.exists) {
-                        // Se não existe cadastro, vai para tela de info extra
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (_) => GoogleExtraInfoScreen(
-                                  email: user.email ?? '',
-                                ),
-                          ),
-                        );
-                      } else {
-                        // Se já existe cadastro, vai direto para SuccessScreen
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SuccessScreen(),
-                          ),
-                        );
-                      }
-                    } else {
-                      // Opcional: mostrar erro se login falhar
-                      showSnackBar(context, "Erro ao fazer login com Google");
-                    }
-                  },
-                  child: Row(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Image.network(
-                          "https://ouch-cdn2.icons8.com/VGHyfDgzIiyEwg3RIll1nYupfj653vnEPRLr0AeoJ8g/rs:fit:456:456/czM6Ly9pY29uczgu/b3VjaC1wcm9kLmFz/c2V0cy9wbmcvODg2/LzRjNzU2YThjLTQx/MjgtNGZlZS04MDNl/LTAwMTM0YzEwOTMy/Ny5wbmc.png",
-                          height: 35,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      const Text(
-                        "Continue with Google",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              const _SignUpLink(),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+// WIDGETS PRIVADOS E OTIMIZADOS (STATeless e CONST)
+
+class _LoginHeader extends StatelessWidget {
+  const _LoginHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      children: [
+        Text(
+          'Bem-vindo de volta!',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+        ),
+        SizedBox(height: 8),
+        Text(
+          'Faça login para continuar.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 16, color: Colors.black54),
+        ),
+      ],
+    );
+  }
+}
+
+class _OrDivider extends StatelessWidget {
+  const _OrDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        Expanded(child: Divider(endIndent: 10)),
+        Text("OU", style: TextStyle(color: Colors.grey)),
+        Expanded(child: Divider(indent: 10)),
+      ],
+    );
+  }
+}
+
+class _GoogleSignInButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  const _GoogleSignInButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      icon: Image.asset('assets/images/google_icon.png', height: 24.0),
+      label: const Text(
+        'Continuar com Google',
+        style: TextStyle(color: Colors.black87),
+      ),
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(color: Colors.grey.shade300),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+      ),
+    );
+  }
+}
+
+class _SignUpLink extends StatelessWidget {
+  const _SignUpLink();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text(
+          "Não tem uma conta?",
+          style: TextStyle(color: Colors.black54),
+        ),
+        TextButton(
+          onPressed:
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SignUpScreen()),
+              ),
+          child: Text(
+            "Cadastre-se",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).primaryColor,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
