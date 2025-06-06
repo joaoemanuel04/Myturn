@@ -9,6 +9,7 @@ class TextFieldInpute extends StatefulWidget {
   final IconData icon;
   final List<TextInputFormatter>? inputFormatters;
   final bool enabled;
+  final FocusNode? focusNode;
 
   const TextFieldInpute({
     super.key,
@@ -18,6 +19,7 @@ class TextFieldInpute extends StatefulWidget {
     required this.icon,
     this.inputFormatters,
     this.enabled = true,
+    this.focusNode,
   });
 
   @override
@@ -51,6 +53,7 @@ class _TextFieldInputeState extends State<TextFieldInpute> {
         obscureText: widget.ispass ? obscureText : false,
         controller: widget.textEditingController,
         inputFormatters: widget.inputFormatters,
+        focusNode: widget.focusNode,
         keyboardType: keyboardType,
         enabled: widget.enabled,
         decoration: InputDecoration(
