@@ -1,108 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:brasil_fields/brasil_fields.dart';
+
+// Seus imports personalizados (verifique os caminhos)
 import 'package:myturn/Estabelecimento_Login_Sing_Up/Services/estabelecimento_auth.dart';
 import 'package:myturn/Estabelecimento_Login_Sing_Up/estabelecimento_success.dart';
 import 'package:myturn/Estabelecimento_Login_Sing_Up/estabelecimento_login.dart';
 import 'package:myturn/Widget/button.dart';
 import 'package:myturn/Widget/snack_bar.dart';
 import 'package:myturn/Widget/text_field.dart';
-import 'package:brasil_fields/brasil_fields.dart';
-import 'package:br_validators/br_validators.dart';
-import 'package:flutter/services.dart';
 
-class CategoriaAutocompleteInpute extends StatefulWidget {
-  final TextEditingController controller;
-  final List<String> categorias;
-  final IconData icon;
-  final String hintText;
+//############################################################################
+//###                                                                      ###
+//###                  CÓDIGO COMPLETO PARA A TELA DE CADASTRO               ###
+//###                                                                      ###
+//############################################################################
 
-  const CategoriaAutocompleteInpute({
-    super.key,
-    required this.controller,
-    required this.categorias,
-    required this.icon,
-    required this.hintText,
-  });
-
-  @override
-  State<CategoriaAutocompleteInpute> createState() =>
-      _CategoriaAutocompleteInputeState();
-}
-
-class _CategoriaAutocompleteInputeState
-    extends State<CategoriaAutocompleteInpute> {
-  List<String> filteredCategorias = [];
-  bool showDropdown = false;
-
-  void _onChanged() {
-    final text = widget.controller.text.toLowerCase();
-    setState(() {
-      filteredCategorias =
-          widget.categorias
-              .where((cat) => cat.toLowerCase().contains(text))
-              .toList();
-      showDropdown = text.isNotEmpty && filteredCategorias.isNotEmpty;
-    });
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_onChanged);
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_onChanged);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        TextFieldInpute(
-          textEditingController: widget.controller,
-          hintText: widget.hintText,
-          icon: widget.icon,
-        ),
-        if (showDropdown)
-          Container(
-            margin: const EdgeInsets.only(top: 4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            constraints: const BoxConstraints(maxHeight: 200),
-            child: ListView(
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              children:
-                  filteredCategorias.map((cat) {
-                    return ListTile(
-                      title: Text(cat),
-                      onTap: () {
-                        widget.controller.text = cat;
-                        setState(() {
-                          showDropdown = false;
-                        });
-                        FocusScope.of(context).unfocus();
-                      },
-                    );
-                  }).toList(),
-            ),
-          ),
-      ],
-    );
-  }
-}
+//--- WIDGET DA TELA PRINCIPAL ---
 
 class EstabelecimentoSignUpScreen extends StatefulWidget {
   const EstabelecimentoSignUpScreen({super.key});
@@ -114,6 +28,7 @@ class EstabelecimentoSignUpScreen extends StatefulWidget {
 
 class _EstabelecimentoSignUpScreenState
     extends State<EstabelecimentoSignUpScreen> {
+  // --- Controllers Principais ---
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController =
@@ -124,54 +39,16 @@ class _EstabelecimentoSignUpScreenState
   final TextEditingController celularController = TextEditingController();
   final TextEditingController estadoController = TextEditingController();
   final TextEditingController cidadeController = TextEditingController();
-  final Map<String, TextEditingController> horarioControllers = {
-    'domingo': TextEditingController(),
-    'segunda': TextEditingController(),
-    'terca': TextEditingController(),
-    'quarta': TextEditingController(),
-    'quinta': TextEditingController(),
-    'sexta': TextEditingController(),
-    'sabado': TextEditingController(),
-  };
 
-  final Map<String, bool> fechadoDias = {
-    'domingo': false,
-    'segunda': false,
-    'terca': false,
-    'quarta': false,
-    'quinta': false,
-    'sexta': false,
-    'sabado': false,
-  };
-
-  final Map<String, bool> vinteQuatroHorasDias = {
-    'domingo': false,
-    'segunda': false,
-    'terca': false,
-    'quarta': false,
-    'quinta': false,
-    'sexta': false,
-    'sabado': false,
-  };
-
-  final Map<String, TextEditingController> horarioInicioControllers = {
-    'domingo': TextEditingController(),
-    'segunda': TextEditingController(),
-    'terca': TextEditingController(),
-    'quarta': TextEditingController(),
-    'quinta': TextEditingController(),
-    'sexta': TextEditingController(),
-    'sabado': TextEditingController(),
-  };
-
-  final Map<String, TextEditingController> horarioFimControllers = {
-    'domingo': TextEditingController(),
-    'segunda': TextEditingController(),
-    'terca': TextEditingController(),
-    'quarta': TextEditingController(),
-    'quinta': TextEditingController(),
-    'sexta': TextEditingController(),
-    'sabado': TextEditingController(),
+  // Usando o modelo de dados para simplificar o gerenciamento de estado
+  final Map<String, HorarioDia> horarios = {
+    'domingo': HorarioDia(),
+    'segunda': HorarioDia(),
+    'terca': HorarioDia(),
+    'quarta': HorarioDia(),
+    'quinta': HorarioDia(),
+    'sexta': HorarioDia(),
+    'sabado': HorarioDia(),
   };
 
   final List<String> categorias = [
@@ -202,12 +79,44 @@ class _EstabelecimentoSignUpScreenState
 
   bool isLoading = false;
 
+  // IMPORTANTE: Adicionar o método dispose para liberar os recursos
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    confirmPasswordController.dispose();
+    nameController.dispose();
+    categoriaController.dispose();
+    cnpjController.dispose();
+    celularController.dispose();
+    estadoController.dispose();
+    cidadeController.dispose();
+
+    // Dispara o dispose de cada controller dentro do nosso modelo
+    for (var horario in horarios.values) {
+      horario.dispose();
+    }
+    super.dispose();
+  }
+
   void signUpEstabelecimento() async {
-    setState(() {
-      isLoading = true;
+    // Adicione suas validações aqui antes de prosseguir
+    if (passwordController.text != confirmPasswordController.text) {
+      showSnackBar(context, "As senhas não coincidem.");
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    final horariosData = horarios.map((dia, horario) {
+      return MapEntry(dia, {
+        'inicio': horario.inicioController.text.trim(),
+        'fim': horario.fimController.text.trim(),
+        'fechado': horario.isFechado,
+        'vinteQuatroHoras': horario.is24h,
+      });
     });
 
-    // ***** ALTERAÇÃO PRINCIPAL: REMOVA O "as String" *****
     String res = await EstabelecimentoAuthService().signUpEstabelecimento(
       email: emailController.text.trim(),
       password: passwordController.text.trim(),
@@ -217,34 +126,22 @@ class _EstabelecimentoSignUpScreenState
       celular: celularController.text.trim(),
       estado: estadoController.text.trim(),
       cidade: cidadeController.text.trim(),
-      horarios: horarioInicioControllers.map((dia, controller) {
-        // Agora o nome `horarioControllers` estava errado
-        return MapEntry(
-          dia,
-          {
-            'inicio': horarioInicioControllers[dia]!.text.trim(),
-            'fim': horarioFimControllers[dia]!.text.trim(),
-            'fechado': fechadoDias[dia]!,
-            'vinteQuatroHoras': vinteQuatroHorasDias[dia]!,
-          },
-          // A conversão "as String" foi removida daqui!
-        );
-      }),
+      horarios: horariosData,
     );
 
-    setState(() {
-      isLoading = false;
-    });
+    if (mounted) {
+      // Boa prática: verificar se o widget ainda está na tela
+      setState(() => isLoading = false);
 
-    if (res == "success") {
-      // ... (seu código continua igual)
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => const EstabelecimentoSuccessScreen(),
-        ),
-      );
-    } else {
-      showSnackBar(context, res);
+      if (res == "success") {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const EstabelecimentoSuccessScreen(),
+          ),
+        );
+      } else {
+        showSnackBar(context, res);
+      }
     }
   }
 
@@ -289,7 +186,6 @@ class _EstabelecimentoSignUpScreenState
                     CnpjInputFormatter(),
                   ],
                 ),
-
                 TextFieldInpute(
                   textEditingController: celularController,
                   hintText: "Celular *",
@@ -307,94 +203,15 @@ class _EstabelecimentoSignUpScreenState
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 ),
-                /*for (var dia in horarioControllers.keys)
-                  TextFieldInpute(
-                    textEditingController: horarioControllers[dia]!,
-                    hintText: "${dia[0].toUpperCase()}${dia.substring(1)}: *",
-                    icon: Icons.access_time,
-                  ),*/
-                // ...existing code...
-                for (var dia in horarioInicioControllers.keys)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "${dia[0].toUpperCase()}${dia.substring(1)}:",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            Checkbox(
-                              value: fechadoDias[dia],
-                              onChanged: (value) {
-                                setState(() {
-                                  fechadoDias[dia] = value!;
-                                  if (value) {
-                                    vinteQuatroHorasDias[dia] = false;
-                                    horarioInicioControllers[dia]!.text = '';
-                                    horarioFimControllers[dia]!.text = '';
-                                  }
-                                });
-                              },
-                            ),
-                            const Text("Fechado"),
-                            Checkbox(
-                              value: vinteQuatroHorasDias[dia],
-                              onChanged: (value) {
-                                setState(() {
-                                  vinteQuatroHorasDias[dia] = value!;
-                                  if (value) {
-                                    fechadoDias[dia] = false;
-                                    horarioInicioControllers[dia]!.text =
-                                        '00:00';
-                                    horarioFimControllers[dia]!.text = '23:59';
-                                  } else {
-                                    horarioInicioControllers[dia]!.text = '';
-                                    horarioFimControllers[dia]!.text = '';
-                                  }
-                                });
-                              },
-                            ),
-                            const Text("24h"),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextFieldInpute(
-                                textEditingController:
-                                    horarioInicioControllers[dia]!,
-                                hintText: "Início",
-                                icon: Icons.access_time,
-                                enabled:
-                                    !fechadoDias[dia]! &&
-                                    !vinteQuatroHorasDias[dia]!,
-                                inputFormatters: [HoraInputFormatter()],
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: TextFieldInpute(
-                                textEditingController:
-                                    horarioFimControllers[dia]!,
-                                hintText: "Fechamento",
-                                icon: Icons.access_time,
-                                enabled:
-                                    !fechadoDias[dia]! &&
-                                    !vinteQuatroHorasDias[dia]!,
-                                inputFormatters: [HoraInputFormatter()],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
+
+                // Mapeando para o novo widget de horário isolado
+                ...horarios.entries.map((entry) {
+                  return HorarioDiaInputWidget(
+                    dia: entry.key,
+                    horario: entry.value,
+                  );
+                }).toList(),
+
                 TextFieldInpute(
                   textEditingController: estadoController,
                   hintText: "Estado *",
@@ -414,11 +231,13 @@ class _EstabelecimentoSignUpScreenState
                   textEditingController: passwordController,
                   hintText: "Senha *",
                   icon: Icons.lock,
+                  ispass: true, // Assumindo que seu widget tem essa propriedade
                 ),
                 TextFieldInpute(
                   textEditingController: confirmPasswordController,
                   hintText: "Confirmação de Senha *",
                   icon: Icons.lock_outline,
+                  ispass: true, // Assumindo que seu widget tem essa propriedade
                 ),
                 const SizedBox(height: 10),
                 const Align(
@@ -453,15 +272,258 @@ class _EstabelecimentoSignUpScreenState
                       },
                       child: const Text(
                         " Entrar",
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+//--- WIDGET PARA O CAMPO DE CATEGORIA (AUTOCOMPLETE) ---
+
+class CategoriaAutocompleteInpute extends StatefulWidget {
+  final TextEditingController controller;
+  final List<String> categorias;
+  final IconData icon;
+  final String hintText;
+
+  const CategoriaAutocompleteInpute({
+    super.key,
+    required this.controller,
+    required this.categorias,
+    required this.icon,
+    required this.hintText,
+  });
+
+  @override
+  State<CategoriaAutocompleteInpute> createState() =>
+      _CategoriaAutocompleteInputeState();
+}
+
+class _CategoriaAutocompleteInputeState
+    extends State<CategoriaAutocompleteInpute> {
+  List<String> filteredCategorias = [];
+  bool showDropdown = false;
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onChanged);
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onChanged);
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    // Esconde o dropdown quando o campo perde o foco
+    if (!_focusNode.hasFocus) {
+      setState(() {
+        showDropdown = false;
+      });
+    }
+  }
+
+  void _onChanged() {
+    final text = widget.controller.text.toLowerCase();
+    if (text.isEmpty) {
+      if (showDropdown) {
+        setState(() {
+          showDropdown = false;
+          filteredCategorias = [];
+        });
+      }
+      return;
+    }
+
+    final newFilteredList =
+        widget.categorias
+            .where((cat) => cat.toLowerCase().contains(text))
+            .toList();
+
+    setState(() {
+      filteredCategorias = newFilteredList;
+      showDropdown = filteredCategorias.isNotEmpty;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Lembre-se de adicionar a propriedade `focusNode` ao seu widget `TextFieldInpute`
+        TextFieldInpute(
+          textEditingController: widget.controller,
+          focusNode: _focusNode,
+          hintText: widget.hintText,
+          icon: widget.icon,
+        ),
+        if (showDropdown)
+          Container(
+            margin: const EdgeInsets.only(top: 4, bottom: 8),
+            constraints: const BoxConstraints(maxHeight: 200),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            // Usar ListView.builder é mais eficiente para listas
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              itemCount: filteredCategorias.length,
+              itemBuilder: (context, index) {
+                final cat = filteredCategorias[index];
+                return ListTile(
+                  title: Text(cat),
+                  onTap: () {
+                    widget.controller.text = cat;
+                    _focusNode.unfocus();
+                    setState(() {
+                      showDropdown = false;
+                    });
+                  },
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+//--- MODELO DE DADOS E WIDGET PARA O HORÁRIO DE CADA DIA ---
+
+// Um modelo para organizar os dados de cada dia
+class HorarioDia {
+  final TextEditingController inicioController = TextEditingController();
+  final TextEditingController fimController = TextEditingController();
+  bool isFechado = false;
+  bool is24h = false;
+
+  void dispose() {
+    inicioController.dispose();
+    fimController.dispose();
+  }
+}
+
+// Widget Stateful isolado para a lógica de um dia da semana
+class HorarioDiaInputWidget extends StatefulWidget {
+  final String dia;
+  final HorarioDia horario;
+
+  const HorarioDiaInputWidget({
+    super.key,
+    required this.dia,
+    required this.horario,
+  });
+
+  @override
+  State<HorarioDiaInputWidget> createState() => _HorarioDiaInputWidgetState();
+}
+
+class _HorarioDiaInputWidgetState extends State<HorarioDiaInputWidget> {
+  // O estado agora é controlado dentro deste widget
+  void _onFechadoChanged(bool? value) {
+    setState(() {
+      widget.horario.isFechado = value ?? false;
+      if (widget.horario.isFechado) {
+        widget.horario.is24h = false;
+        widget.horario.inicioController.clear();
+        widget.horario.fimController.clear();
+      }
+    });
+  }
+
+  void _on24hChanged(bool? value) {
+    setState(() {
+      widget.horario.is24h = value ?? false;
+      if (widget.horario.is24h) {
+        widget.horario.isFechado = false;
+        widget.horario.inicioController.text = '00:00';
+        widget.horario.fimController.text = '23:59';
+      } else {
+        widget.horario.inicioController.clear();
+        widget.horario.fimController.clear();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String diaCapitalizado =
+        "${widget.dia[0].toUpperCase()}${widget.dia.substring(1)}";
+    final bool isEnabled = !widget.horario.isFechado && !widget.horario.is24h;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "$diaCapitalizado:",
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          Row(
+            children: [
+              Checkbox(
+                value: widget.horario.isFechado,
+                onChanged: _onFechadoChanged,
+              ),
+              const Text("Fechado"),
+              const SizedBox(width: 10),
+              Checkbox(value: widget.horario.is24h, onChanged: _on24hChanged),
+              const Text("24h"),
+            ],
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: TextFieldInpute(
+                  textEditingController: widget.horario.inicioController,
+                  hintText: "Início",
+                  icon: Icons.access_time,
+                  enabled: isEnabled,
+                  inputFormatters: [HoraInputFormatter()],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextFieldInpute(
+                  textEditingController: widget.horario.fimController,
+                  hintText: "Fim",
+                  icon: Icons.access_time,
+                  enabled: isEnabled,
+                  inputFormatters: [HoraInputFormatter()],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

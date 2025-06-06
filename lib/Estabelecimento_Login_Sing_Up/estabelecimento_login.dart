@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+// 1. ADICIONE ESTE IMPORT PARA A TELA HOME QUE CRIAMOS
+import 'package:myturn/pages/estabelecimento/estabelecimento_home_screen.dart';
 import 'package:myturn/Estabelecimento_Login_Sing_Up/estabelecimento_sign_up.dart';
 import 'package:myturn/Widget/button.dart';
 import 'package:myturn/Widget/text_field.dart';
@@ -29,15 +31,23 @@ class _EstabelecimentoLoginScreenState
       password: passwordController.text.trim(),
     );
 
-    setState(() {
-      isLoading = false;
-    });
-
     if (res == "success") {
-      showSnackBar(context, "Login realizado com sucesso!");
-      // Navegue para a tela principal do estabelecimento aqui, se desejar
+      if (!mounted) return; // Verificação de segurança
+
+      // 2. SUBSTITUA O showSnackBar PELA NAVEGAÇÃO
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const EstabelecimentoHomeScreen(),
+        ),
+      );
     } else {
-      showSnackBar(context, res);
+      setState(() {
+        isLoading = false;
+      });
+      if (mounted) {
+        // Verificação de segurança
+        showSnackBar(context, res);
+      }
     }
   }
 
@@ -64,22 +74,10 @@ class _EstabelecimentoLoginScreenState
               TextFieldInpute(
                 textEditingController: passwordController,
                 hintText: "Digite sua senha",
+                ispass: true, // Adicionado para esconder a senha
                 icon: Icons.lock,
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 35),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    "Esqueceu a senha?",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.blue,
-                    ),
-                  ),
-                ),
-              ),
+              // ... o resto do seu widget de "Esqueceu a senha?"
               MyButton(
                 onTab: loginEstabelecimento,
                 text: isLoading ? "Carregando..." : "Entrar",
