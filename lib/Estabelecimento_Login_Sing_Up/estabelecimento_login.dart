@@ -53,66 +53,82 @@ class _EstabelecimentoLoginScreenState
 
   @override
   Widget build(BuildContext context) {
-    double height = MediaQuery.of(context).size.height;
+    // A variável 'height' não é mais necessária para o layout principal,
+    // mas pode ser mantida se usada em outros lugares.
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: SizedBox(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: double.infinity,
-                height: height / 2.7,
-                child: Image.asset("assets/images/logo.png"),
-              ),
-              TextFieldInpute(
-                textEditingController: emailController,
-                hintText: "Digite seu email",
-                icon: Icons.email,
-              ),
-              TextFieldInpute(
-                textEditingController: passwordController,
-                hintText: "Digite sua senha",
-                ispass: true, // Adicionado para esconder a senha
-                icon: Icons.lock,
-              ),
-              // ... o resto do seu widget de "Esqueceu a senha?"
-              MyButton(
-                onTab: loginEstabelecimento,
-                text: isLoading ? "Carregando..." : "Entrar",
-              ),
-              SizedBox(height: height / 15),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "Não tem uma conta? ",
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (context) => const EstabelecimentoSignUpScreen(),
-                        ),
-                      );
-                    },
-                    child: const Text(
-                      "Cadastre-se",
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.blue,
-                        fontWeight: FontWeight.bold,
+        // ATUALIZAÇÃO: Trocamos a Column por um ListView.
+        // O ListView já é rolável por natureza.
+        child: ListView(
+          // Adicionamos um padding para que os elementos não fiquem colados nas bordas.
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+          children: [
+            // Adicionamos um espaço no topo para o layout respirar.
+            const SizedBox(height: 30),
+
+            // A imagem agora tem uma altura fixa, o que é mais seguro para o layout.
+            Image.asset(
+              "assets/images/logo.png",
+              height: 150, // Altura fixa em vez de percentual da tela.
+            ),
+            const SizedBox(height: 40),
+
+            // Seus campos de texto.
+            TextFieldInpute(
+              textEditingController: emailController,
+              hintText: "Digite seu email",
+              icon: Icons.email,
+            ),
+            const SizedBox(height: 20), // Espaçamento entre os campos.
+            TextFieldInpute(
+              textEditingController: passwordController,
+              hintText: "Digite sua senha",
+              ispass: true,
+              icon: Icons.lock,
+            ),
+            const SizedBox(height: 24),
+
+            // Seu botão de login.
+            MyButton(
+              onTab: loginEstabelecimento,
+              text: isLoading ? "Carregando..." : "Entrar",
+            ),
+            const SizedBox(height: 30),
+
+            // Seu link para a tela de cadastro.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  "Não tem uma conta? ",
+                  style: TextStyle(fontSize: 16),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (context) => const EstabelecimentoSignUpScreen(),
                       ),
+                    );
+                  },
+                  child: const Text(
+                    "Cadastre-se",
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.blue,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+            // Adicionamos um espaço no final para a rolagem ficar melhor.
+            const SizedBox(height: 30),
+          ],
         ),
       ),
     );
