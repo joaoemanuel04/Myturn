@@ -1,33 +1,15 @@
+// lib/pages/estabelecimento/estabelecimento_home_screen.dart
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
+// ALTERAÇÃO: Import do model
+import 'package:myturn/models/cliente_fila_model.dart';
 
-// O modelo de dados para o cliente na fila
-class ClienteNaFila {
-  final String uid;
-  final String nome;
-  final DateTime horaEntrada;
+// ALTERAÇÃO: Classe ClienteNaFila local foi REMOVIDA
 
-  ClienteNaFila({
-    required this.uid,
-    required this.nome,
-    required this.horaEntrada,
-  });
-
-  // ERRO 1 CORRIGIDO: Substituído `fromSnapshot` por `fromMap` para simplificar.
-  factory ClienteNaFila.fromMap(String uid, Map<String, dynamic> map) {
-    return ClienteNaFila(
-      uid: uid,
-      nome: map['nome'] ?? 'Cliente anônimo',
-      horaEntrada:
-          DateTime.tryParse(map['horaEntrada'] ?? '') ?? DateTime.now(),
-    );
-  }
-}
-
-// O Widget principal da tela
 class EstabelecimentoHomeScreen extends StatefulWidget {
   const EstabelecimentoHomeScreen({super.key});
 
@@ -37,7 +19,6 @@ class EstabelecimentoHomeScreen extends StatefulWidget {
 }
 
 class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
-  // Variáveis de controle e estado
   final _auth = FirebaseAuth.instance;
   late final DatabaseReference _estabelecimentoRef;
   late final DatabaseReference _filaRef;
@@ -47,7 +28,8 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
   StreamSubscription? _statusFilaSubscription;
   StreamSubscription? _metricasSubscription;
 
-  List<ClienteNaFila> _fila = [];
+  // ALTERAÇÃO: A lista agora usa o ClienteFilaModel
+  List<ClienteFilaModel> _fila = [];
   bool _isFilaAberta = false;
   bool _isLoading = true;
   int _atendidosHoje = 0;
@@ -60,14 +42,11 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
 
   @override
   void dispose() {
-    // Cancela todos os listeners para evitar vazamentos de memória
     _filaSubscription?.cancel();
     _statusFilaSubscription?.cancel();
     _metricasSubscription?.cancel();
     super.dispose();
   }
-
-  // --- SEÇÃO DE LÓGICA E FIREBASE ---
 
   void _inicializarDados() {
     final user = _auth.currentUser;
@@ -81,7 +60,7 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
 
     _escutarStatusDaFila();
     _escutarMudancasDaFila();
-    _escutarMetricas(); // Escuta o contador de atendidos
+    _escutarMetricas();
   }
 
   void _escutarMetricas() {
@@ -104,7 +83,7 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
           if (mounted) {
             setState(() {
               _isFilaAberta = (event.snapshot.value as bool?) ?? false;
-              _isLoading = false; // Finaliza o loading inicial
+              _isLoading = false;
             });
           }
         });
@@ -114,20 +93,21 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
     _filaSubscription = _filaRef.onValue.listen((event) {
       if (event.snapshot.exists && event.snapshot.value is Map) {
         final data = Map<String, dynamic>.from(event.snapshot.value as Map);
-        // ERRO 1 CORRIGIDO: Usando o novo factory `fromMap`.
+
+        // ALTERAÇÃO: Usando o factory do ClienteFilaModel
         final novaFila =
             data.entries
                 .map(
-                  (e) => ClienteNaFila.fromMap(
+                  (e) => ClienteFilaModel.fromMap(
                     e.key,
                     Map<String, dynamic>.from(e.value),
                   ),
                 )
                 .toList();
+
         novaFila.sort((a, b) => a.horaEntrada.compareTo(b.horaEntrada));
         if (mounted) setState(() => _fila = novaFila);
       } else {
-        // Se não houver clientes, a fila está vazia
         if (mounted) setState(() => _fila = []);
       }
     });
@@ -146,9 +126,7 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
     final clienteNaReservaRef = FirebaseDatabase.instance.ref(
       'minhasReservasPorUsuario/$clienteUid/${_auth.currentUser!.uid}',
     );
-    // ERRO 2 CORRIGIDO: Adicionado Try/Catch para tratar possíveis falhas.
     try {
-      // Remove o cliente da fila e da lista de reservas dele em paralelo
       await Future.wait([
         clienteNaFilaRef.remove(),
         clienteNaReservaRef.remove(),
@@ -163,7 +141,6 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
 
     final proximoCliente = _fila.first;
 
-    // Usa uma transação para incrementar o contador no Firebase de forma segura
     final TransactionResult result = await _metricasRef
         .child('atendidosHoje')
         .runTransaction((Object? currentData) {
@@ -171,7 +148,6 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
           return Transaction.success(currentValue + 1);
         });
 
-    // ERRO 3 CORRIGIDO: Cliente só é removido se a transação for bem-sucedida.
     if (result.committed) {
       await _removerCliente(proximoCliente.uid);
       if (mounted) {
@@ -192,23 +168,18 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
     }
   }
 
-  // --- SEÇÃO DE CONSTRUÇÃO DA INTERFACE (UI) ---
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          Theme.of(context).colorScheme.background, // Cor de fundo do tema
+      backgroundColor: Theme.of(context).colorScheme.background,
       appBar: AppBar(
         title: const Text('Painel de Controle'),
         actions: [
           PopupMenuButton<String>(
             onSelected: (value) async {
-              // ERRO 4 CORRIGIDO: `onSelected` agora é async.
               if (value == 'sair') {
                 await _auth.signOut();
-                if (!mounted) return; // Checagem de segurança
-                // Retorna para a tela inicial e remove todas as outras rotas
+                if (!mounted) return;
                 Navigator.of(
                   context,
                 ).pushNamedAndRemoveUntil('/', (route) => false);
@@ -228,7 +199,6 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
           _isLoading
               ? const Center(child: CircularProgressIndicator())
               : ListView(
-                // Usando ListView para permitir rolagem de todo o conteúdo
                 padding: const EdgeInsets.all(16.0),
                 children: [
                   _buildControleFilaCard(),
@@ -248,9 +218,121 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
     );
   }
 
-  // --- WIDGETS AUXILIARES PARA COMPONENTIZAR A UI ---
+  Widget _buildProximoClienteCard() {
+    final proximoCliente = _fila.isNotEmpty ? _fila.first : null;
 
+    return Card(
+      elevation: 4,
+      color: Theme.of(context).primaryColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'PRÓXIMO A SER CHAMADO',
+              style: TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              proximoCliente?.nome ?? 'Ninguém na fila', // ALTERAÇÃO: Usa .nome
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            if (proximoCliente != null)
+              Text(
+                'Entrou às ${DateFormat('HH:mm').format(proximoCliente.horaEntrada)}', // ALTERAÇÃO: Usa .horaEntrada
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14, color: Colors.white70),
+              ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.campaign_outlined),
+              label: const Text('CHAMAR PRÓXIMO'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Theme.of(context).primaryColor,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              onPressed: proximoCliente != null ? _chamarProximoCliente : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilaDeEsperaList() {
+    if (_fila.length <= 1) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32.0),
+        child: Center(
+          child: Text(
+            'Não há mais ninguém aguardando.',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    final filaDeEspera = _fila.sublist(1);
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: filaDeEspera.length,
+      itemBuilder: (context, index) {
+        final cliente = filaDeEspera[index];
+        return Card(
+          key: ValueKey(cliente.uid),
+          elevation: 0,
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+              child: Text(
+                '#${index + 2}',
+                style: TextStyle(
+                  color: Theme.of(context).primaryColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            title: Text(
+              cliente.nome,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            subtitle: Text(
+              'Entrou às: ${DateFormat('HH:mm').format(cliente.horaEntrada)}',
+            ),
+            trailing: IconButton(
+              icon: const Icon(
+                Icons.person_remove_outlined,
+                color: Colors.redAccent,
+              ),
+              onPressed: () => _removerCliente(cliente.uid),
+              tooltip: 'Remover da fila',
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Widgets _buildControleFilaCard e _buildMetricasDashboard não precisam de alteração
   Widget _buildControleFilaCard() {
+    //... inalterado
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -295,60 +377,8 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
     );
   }
 
-  Widget _buildProximoClienteCard() {
-    final proximoCliente = _fila.isNotEmpty ? _fila.first : null;
-
-    return Card(
-      elevation: 4,
-      color: Theme.of(context).primaryColor, // Cor de destaque do tema
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'PRÓXIMO A SER CHAMADO',
-              style: TextStyle(
-                color: Colors.white70,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              proximoCliente?.nome ?? 'Ninguém na fila',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            if (proximoCliente != null)
-              Text(
-                'Entrou às ${DateFormat('HH:mm').format(proximoCliente.horaEntrada)}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 14, color: Colors.white70),
-              ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.campaign_outlined),
-              label: const Text('CHAMAR PRÓXIMO'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Theme.of(context).primaryColor,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              // O botão fica desabilitado se não houver ninguém na fila
-              onPressed: proximoCliente != null ? _chamarProximoCliente : null,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildMetricasDashboard() {
+    //... inalterado
     return Row(
       children: [
         Expanded(
@@ -371,74 +401,10 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
       ],
     );
   }
-
-  Widget _buildFilaDeEsperaList() {
-    // Se a fila tem 0 ou 1 pessoa, não há "próximos" a serem mostrados na lista
-    if (_fila.length <= 1) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 32.0),
-        child: Center(
-          child: Text(
-            'Não há mais ninguém aguardando.',
-            style: TextStyle(color: Colors.grey),
-          ),
-        ),
-      );
-    }
-
-    // Começa do segundo item da lista, pois o primeiro já está no card de destaque
-    final filaDeEspera = _fila.sublist(1);
-
-    return ListView.builder(
-      shrinkWrap: true, // Essencial para uma ListView dentro de outra rolagem
-      physics:
-          const NeverScrollableScrollPhysics(), // Desabilita a rolagem da lista interna
-      itemCount: filaDeEspera.length,
-      itemBuilder: (context, index) {
-        final cliente = filaDeEspera[index];
-        return Card(
-          // ERRO 5 CORRIGIDO: Adicionada uma Key para otimizar o rebuild da lista.
-          key: ValueKey(cliente.uid),
-          elevation: 0,
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-              child: Text(
-                '#${index + 2}', // Posição real na fila
-                style: TextStyle(
-                  color: Theme.of(context).primaryColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            title: Text(
-              cliente.nome,
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-            subtitle: Text(
-              'Entrou às: ${DateFormat('HH:mm').format(cliente.horaEntrada)}',
-            ),
-            trailing: IconButton(
-              icon: const Icon(
-                Icons.person_remove_outlined,
-                color: Colors.redAccent,
-              ),
-              onPressed: () => _removerCliente(cliente.uid),
-              tooltip: 'Remover da fila',
-            ),
-          ),
-        );
-      },
-    );
-  }
 }
 
-// Widget reutilizável para os cards de informação do dashboard
 class _InfoCard extends StatelessWidget {
+  //... inalterado
   final String titulo;
   final String valor;
   final IconData icone;
@@ -454,7 +420,6 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ERRO 6 CORRIGIDO: Verifica se a cor é MaterialColor antes de usar shades.
     final Color corValor =
         cor is MaterialColor ? (cor as MaterialColor).shade800 : cor;
     final Color corTitulo =

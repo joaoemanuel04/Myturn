@@ -1,15 +1,19 @@
-//Fila Ativa 2
-import 'dart:async';
+// lib/pages/cliente/fila_ativa.dart
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:myturn/Widget/snack_bar.dart';
+// ALTERAÇÃO: Importaremos o model de cliente na fila que já criamos
+import 'package:myturn/models/cliente_fila_model.dart';
 
 class FilaAtivaScreen extends StatefulWidget {
   final String estabelecimentoId;
   final String nomeEstabelecimento;
 
   FilaAtivaScreen({
+    super.key,
     required this.estabelecimentoId,
     required this.nomeEstabelecimento,
   });
@@ -33,103 +37,95 @@ class _FilaAtivaScreenState extends State<FilaAtivaScreen> {
 
   @override
   void dispose() {
-    // 3. MUITO IMPORTANTE: Cancela o ouvinte quando a tela for fechada
-    // para evitar vazamentos de memória e erros.
     _filaSubscription?.cancel();
     super.dispose();
   }
 
-  // 4. A nova função que configura o ouvinte em tempo real
   void _iniciarListenerDaFila() {
     final filaRef = FirebaseDatabase.instance.ref(
       'filas/${widget.estabelecimentoId}/clientes',
     );
 
-    // Cancela qualquer ouvinte anterior, por segurança
     _filaSubscription?.cancel();
 
-    // .onValue.listen() é o que cria o ouvinte em tempo real
     _filaSubscription = filaRef.onValue.listen(
       (DatabaseEvent event) {
         final snapshot = event.snapshot;
 
         if (snapshot.exists && snapshot.value is Map) {
-          final clientes = Map<String, dynamic>.from(snapshot.value as Map);
-          final keys = clientes.keys.toList();
-          final index = keys.indexWhere((key) => key == uid);
+          // --- INÍCIO DA CORREÇÃO ---
+          final data = Map<String, dynamic>.from(snapshot.value as Map);
 
-          // Se o usuário FOI encontrado na lista
+          // 1. Converte todos os clientes do mapa para uma lista de objetos ClienteFilaModel
+          final List<ClienteFilaModel> filaCompleta =
+              data.entries.map((entry) {
+                return ClienteFilaModel.fromMap(
+                  entry.key,
+                  Map<String, dynamic>.from(entry.value),
+                );
+              }).toList();
+
+          // 2. Ordena a lista pela hora de entrada (do mais antigo para o mais novo)
+          filaCompleta.sort((a, b) => a.horaEntrada.compareTo(b.horaEntrada));
+
+          // 3. Encontra a posição (index) do usuário atual NA LISTA ORDENADA
+          final index = filaCompleta.indexWhere(
+            (cliente) => cliente.uid == uid,
+          );
+          // --- FIM DA CORREÇÃO ---
+
           if (index != -1) {
             if (mounted) {
               setState(() {
                 estaNaFila = true;
-                posicaoNaFila = index + 1; // Posição atualizada em tempo real
+                // A posição correta é o index + 1
+                posicaoNaFila = index + 1;
               });
             }
           } else {
-            // Se o usuário NÃO FOI encontrado na lista (ou saiu da fila)
             if (mounted) {
               setState(() {
                 estaNaFila = false;
-                posicaoNaFila = 0;
+                posicaoNaFila = null;
               });
             }
           }
         } else {
-          // Se a fila está vazia ou não existe mais
           if (mounted) {
             setState(() {
               estaNaFila = false;
-              posicaoNaFila = 0;
+              posicaoNaFila = null;
             });
           }
         }
       },
       onError: (error) {
-        // Opcional: Lidar com possíveis erros de permissão de leitura
         print("Erro no listener da fila: $error");
       },
     );
   }
 
   Future<void> entrarNaFila() async {
-    // Impede que o usuário clique no botão várias vezes
     if (_isProcessing) return;
-
-    setState(() {
-      _isProcessing =
-          true; // Inicia o processamento, pode desabilitar o botão na UI
-    });
+    setState(() => _isProcessing = true);
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      print("Usuário não logado.");
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Erro: Usuário não está logado.")));
+      if (mounted) showSnackBar(context, "Erro: Usuário não está logado.");
       setState(() => _isProcessing = false);
       return;
     }
 
     try {
-      // 1. BUSCA OS DADOS DO CLIENTE DE FORMA SEGURA
-      // Ponto de atenção: No seu código você usou 'users/$uid'. Nos nossos exemplos anteriores,
-      // usamos 'clientes/$uid'. Verifique qual é o caminho correto no seu banco de dados!
-      // Usarei 'clientes/$uid' aqui, conforme o padrão anterior.
       final clienteRef = FirebaseDatabase.instance.ref('users/$uid');
       final clienteSnapshot = await clienteRef.get();
 
       if (!clienteSnapshot.exists) {
-        print(
-          "Erro Crítico: Perfil do cliente não encontrado no banco de dados.",
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Seu perfil não foi encontrado. Não é possível entrar na fila.",
-            ),
-          ),
-        );
+        if (mounted)
+          showSnackBar(
+            context,
+            "Seu perfil não foi encontrado. Não é possível entrar na fila.",
+          );
         setState(() => _isProcessing = false);
         return;
       }
@@ -139,66 +135,66 @@ class _FilaAtivaScreenState extends State<FilaAtivaScreen> {
       );
       final nomeCliente = dadosCliente['name'] ?? 'Cliente sem nome';
 
-      // 2. CRIA AS DUAS REFERÊNCIAS PARA A ESCRITA
-      // Referência para a fila do estabelecimento
       final filaRef = FirebaseDatabase.instance.ref(
         'filas/${widget.estabelecimentoId}/clientes/$uid',
       );
-
-      // Referência para o "índice" de reservas do usuário (a otimização)
       final reservaUsuarioRef = FirebaseDatabase.instance.ref(
         'minhasReservasPorUsuario/$uid/${widget.estabelecimentoId}',
       );
 
-      // 3. EXECUTA AS DUAS ESCRITAS EM PARALELO PARA MAIOR EFICIÊNCIA
+      // Usando o model ClienteFilaModel para criar os dados
+      final clienteParaFila = ClienteFilaModel(
+        uid: uid,
+        nome: nomeCliente,
+        horaEntrada: DateTime.now(),
+      );
+
       await Future.wait([
-        // Escreve os dados na fila do estabelecimento
-        filaRef.set({
-          'nome': nomeCliente,
-          'horaEntrada': DateTime.now().toIso8601String(),
-        }),
-        // Escreve a "marcação" no perfil de reservas do usuário
+        filaRef.set(clienteParaFila.toMap()), // Salva usando toMap()
         reservaUsuarioRef.set(true),
       ]);
 
-      print("Usuário inserido na fila e no índice de reservas com sucesso!");
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Você entrou na fila!")));
-
-      //verificarSeEstaNaFila(); // Mantém a chamada para atualizar a UI
+      if (mounted) showSnackBar(context, "Você entrou na fila!");
     } catch (e) {
-      print("Ocorreu um erro ao entrar na fila: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Ocorreu um erro. Tente novamente.")),
-      );
+      if (mounted) showSnackBar(context, "Ocorreu um erro. Tente novamente.");
     } finally {
-      // Garante que o estado de processamento sempre termine
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 
+  // O método build() continua o mesmo
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.nomeEstabelecimento)),
       body: Center(
         child:
-            estaNaFila
+            _isProcessing
+                ? CircularProgressIndicator()
+                : estaNaFila
                 ? Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Você já está na fila.'),
-                    Text('Sua posição: $posicaoNaFila'),
+                    Text(
+                      'Você está na fila!',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Sua posição:',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    Text(
+                      '#$posicaoNaFila',
+                      style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 )
                 : ElevatedButton(
                   onPressed: entrarNaFila,
-                  child: Text('Entrar na fila'),
+                  child: const Text('Entrar na fila'),
                 ),
       ),
     );

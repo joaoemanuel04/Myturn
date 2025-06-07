@@ -1,6 +1,8 @@
+// lib/Cliente_Login_Sign_up/Services/auth.dart
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:myturn/models/user_model.dart';
 
 class AuthServicews {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -23,25 +25,37 @@ class AuthServicews {
         return "Preencha todos os campos!";
       }
 
-      // Cria usuário
+      // 1. Cria o usuário na autenticação do Firebase
       UserCredential credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('name', name);
-      await prefs.setString('phone', phone);
-      await prefs.setString('birthDate', birthDate);
+      // 2. ALTERAÇÃO: Removemos SharedPreferences e criamos o objeto UserModel imediatamente
+      final newUser = UserModel(
+        uid: credential.user!.uid,
+        name: name,
+        email: email,
+        phone: phone,
+        birthDate: birthDate,
+        emailVerified: false, // O cadastro começa com 'false'
+      );
 
-      // Envia email de verificação
+      // 3. ALTERAÇÃO: Salva o objeto completo no banco de dados
+      await _dbRef
+          .child("users")
+          .child(credential.user!.uid)
+          .set(newUser.toMap());
+
+      // 4. Envia o e-mail de verificação
       await credential.user!.sendEmailVerification();
 
-      // Aguarda verificação manual
+      // 5. Desloga o usuário para forçá-lo a fazer login após verificar
       await _auth.signOut();
 
       res = "success";
     } on FirebaseAuthException catch (e) {
+      // (código de tratamento de erro inalterado)
       switch (e.code) {
         case 'email-already-in-use':
           res = "Este e-mail já está em uso.";
@@ -77,42 +91,38 @@ class AuthServicews {
         password: password,
       );
 
+      // ALTERAÇÃO: Checagem principal aqui!
       if (!cred.user!.emailVerified) {
-        await _auth.signOut();
-        return "Por favor, verifique seu email antes de fazer login.";
+        await _auth.signOut(); // Garante que o usuário não fique logado
+        return "Por favor, verifique seu email antes de fazer login. Cheque sua caixa de entrada e spam.";
       }
 
-      // Salva os dados apenas após a verificação do e-mail
-      final snapshot = await _dbRef.child("users").child(cred.user!.uid).get();
+      // ALTERAÇÃO: Se o email está verificado, atualizamos nosso banco de dados se necessário.
+      final userRef = _dbRef.child("users").child(cred.user!.uid);
+      final snapshot = await userRef.get();
+
       if (!snapshot.exists) {
-        final prefs = await SharedPreferences.getInstance();
-        final name = prefs.getString('name') ?? "";
-        final phone = prefs.getString('phone') ?? "";
-        final birthDate = prefs.getString('birthDate') ?? "";
+        await _auth.signOut(); // Desloga o usuário por segurança
+        return "Este e-mail não pertence a uma conta de cliente.";
+      }
 
-        await _dbRef.child("users").child(cred.user!.uid).set({
-          "name": name,
-          "email": cred.user!.email,
-          "phone": phone,
-          "birthDate": birthDate,
-          "uid": cred.user!.uid,
-          "emailVerified": true,
-        });
-
-        // Limpa os dados locais após salvar no banco
-        await prefs.remove('name');
-        await prefs.remove('phone');
-        await prefs.remove('birthDate');
+      // Se o usuário é um cliente, continuamos com a lógica que já existia
+      final userData = UserModel.fromMap(
+        Map<String, dynamic>.from(snapshot.value as Map),
+      );
+      if (!userData.emailVerified) {
+        await userRef.update({'emailVerified': true});
       }
 
       res = "success";
     } on FirebaseAuthException catch (e) {
       switch (e.code) {
         case 'user-not-found':
-          res = "Usuário não encontrado.";
+        case 'invalid-credential': // Novo código de erro do Firebase para login inválido
+          res = "E-mail ou senha inválidos.";
           break;
         case 'wrong-password':
-          res = "Senha incorreta.";
+          res = "E-mail ou senha inválidos.";
           break;
         case 'invalid-email':
           res = "E-mail inválido.";

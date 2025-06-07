@@ -3,31 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
-import 'fila_ativa.dart'; // Mantemos a navegação para a fila
+import 'fila_ativa.dart';
+import 'package:myturn/models/estabelecimento_model.dart';
+// O scanner ainda não foi implementado, então podemos deixar o import comentado ou removê-lo por enquanto.
+// import 'package:myturn/pages/cliente/qr_scanner_screen.dart';
 
-// PASSO 1: CRIAR UM MODELO DE DADOS PARA O ESTABELECIMENTO
-// Isso organiza o código, evita erros de digitação e melhora a performance.
-class Estabelecimento {
-  final String id;
-  final String nome;
-  final String categoria;
-  final String cidade;
-  final String estado;
-  final bool filaAberta; // Novo campo para o status da fila
-  final int contagemFila; // Novo campo para a contagem de pessoas
-
-  Estabelecimento({
-    required this.id,
-    required this.nome,
-    required this.categoria,
-    required this.cidade,
-    required this.estado,
-    this.filaAberta = false,
-    this.contagemFila = 0,
-  });
-}
-
-//--- TELA PRINCIPAL ---
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -36,7 +16,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // --- VARIÁVEIS DE ESTADO ---
   bool _isLoading = true;
   String? estado;
   String? cidade;
@@ -45,12 +24,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String _categoriaSelecionada = "Restaurante";
   final TextEditingController _searchController = TextEditingController();
 
-  // Lista principal que armazena os dados do Firebase
-  List<Estabelecimento> _todosEstabelecimentos = [];
-  // Lista que será exibida na tela (após filtros de busca e categoria)
-  List<Estabelecimento> _estabelecimentosFiltrados = [];
+  List<EstabelecimentoModel> _todosEstabelecimentos = [];
+  List<EstabelecimentoModel> _estabelecimentosFiltrados = [];
 
-  // Lista de categorias (mantida do seu código original)
   final List<String> categorias = [
     "Restaurante",
     "Bar",
@@ -66,7 +42,6 @@ class _HomeScreenState extends State<HomeScreen> {
     "Outro",
   ];
 
-  // --- CICLO DE VIDA E LÓGICA PRINCIPAL ---
   @override
   void initState() {
     super.initState();
@@ -82,8 +57,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _iniciarBuscaDeLocalizacao() async {
-    // A lógica de permissão do seu código original é mantida aqui
-    // (verificações de serviço, permissão, etc.)
     bool servicoHabilitado = await Geolocator.isLocationServiceEnabled();
     if (!servicoHabilitado) {
       if (mounted)
@@ -123,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
           estado = local.administrativeArea;
           _localizacaoDisplay = "Exibindo locais em: $cidade, $estado";
         });
-        _carregarEstabelecimentos();
+        await _carregarEstabelecimentos();
       }
     } on TimeoutException {
       if (mounted)
@@ -139,7 +112,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // PASSO 2: FUNÇÃO OTIMIZADA PARA CARREGAR DADOS
+  // ALTERAÇÃO: A função agora carrega apenas os dados estáticos dos estabelecimentos.
+  // As informações da fila (status e contagem) serão responsabilidade de cada card individualmente.
   Future<void> _carregarEstabelecimentos() async {
     if (cidade == null || estado == null) return;
     if (mounted) setState(() => _isLoading = true);
@@ -147,67 +121,48 @@ class _HomeScreenState extends State<HomeScreen> {
     final estabelecimentosRef = FirebaseDatabase.instance.ref(
       'estabelecimentos',
     );
-    final filasRef = FirebaseDatabase.instance.ref('filas');
-
     final snapshot = await estabelecimentosRef.get();
 
     if (!snapshot.exists) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _todosEstabelecimentos = [];
+          _isLoading = false;
+        });
+        _filtrarEstabelecimentos();
+      }
       return;
     }
 
-    final List<Estabelecimento> estabelecimentosTemp = [];
-    final List<Future> futures = [];
-
+    final List<EstabelecimentoModel> estabelecimentosTemp = [];
     final todos = Map<String, dynamic>.from(snapshot.value as Map);
 
     todos.forEach((id, dados) {
       final dadosMap = Map<String, dynamic>.from(dados);
-      // Filtra pela localização ANTES de fazer outras buscas
-      if (dadosMap['cidade'].toString().toLowerCase() ==
+      if (dadosMap['cidade']?.toString().toLowerCase() ==
               cidade!.toLowerCase() &&
           dadosMap['estado'] == estado) {
-        final future = Future(() async {
-          // Busca o status da fila e a contagem de forma paralela
-          final statusSnapshot =
-              await estabelecimentosRef.child('$id/filaAberta').get();
-          final contagemSnapshot = await filasRef.child('$id/clientes').get();
-
-          return Estabelecimento(
-            id: id,
-            nome: dadosMap['name'] ?? 'Nome indisponível',
-            categoria: dadosMap['categoria'] ?? 'Sem categoria',
-            cidade: dadosMap['cidade'] ?? '',
-            estado: dadosMap['estado'] ?? '',
-            filaAberta: (statusSnapshot.value as bool?) ?? false,
-            contagemFila:
-                contagemSnapshot.exists ? contagemSnapshot.children.length : 0,
-          );
-        });
-
-        futures.add(future.then((est) => estabelecimentosTemp.add(est)));
+        // Apenas criamos o modelo com os dados que já temos.
+        // O card cuidará do resto.
+        estabelecimentosTemp.add(
+          EstabelecimentoModel.fromMap(dadosMap..['uid'] = id),
+        );
       }
     });
-
-    // Espera todas as buscas paralelas terminarem
-    await Future.wait(futures);
 
     if (mounted) {
       setState(() {
         _todosEstabelecimentos = estabelecimentosTemp;
-        _isLoading = false;
       });
-      _filtrarEstabelecimentos(); // Aplica o filtro inicial
+      _filtrarEstabelecimentos();
     }
   }
 
   void _filtrarEstabelecimentos() {
-    List<Estabelecimento> filtrados =
+    List<EstabelecimentoModel> filtrados =
         _todosEstabelecimentos.where((est) {
-          // Filtro por categoria
           final correspondeCategoria = est.categoria == _categoriaSelecionada;
-          // Filtro por texto de busca (case-insensitive)
-          final correspondeBusca = est.nome.toLowerCase().contains(
+          final correspondeBusca = est.name.toLowerCase().contains(
             _searchController.text.toLowerCase(),
           );
           return correspondeCategoria && correspondeBusca;
@@ -220,13 +175,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // --- CONSTRUÇÃO DA UI ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('MyTurn'),
-        backgroundColor: const Color(0xFF2C7DA0), // Cor consistente
+        backgroundColor: const Color(0xFF2C7DA0),
         elevation: 0,
       ),
       drawer: Drawer(
@@ -252,22 +206,29 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
+      // O botão do scanner pode ser adicionado aqui depois.
+      // floatingActionButton: FloatingActionButton(...)
       body: Column(
         children: [
-          // CABEÇALHO COM LOCALIZAÇÃO E BUSCA
           _buildHeader(),
-
-          // FILTRO DE CATEGORIAS
           _buildCategoryFilter(),
-
-          // CORPO PRINCIPAL
           Expanded(
             child:
                 _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : _estabelecimentosFiltrados.isEmpty
-                    ? const Center(
-                      child: Text('Nenhum estabelecimento encontrado.'),
+                    ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text(
+                          'Nenhum estabelecimento encontrado para a categoria "$_categoriaSelecionada" em sua cidade.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
                     )
                     : RefreshIndicator(
                       onRefresh: _carregarEstabelecimentos,
@@ -275,15 +236,18 @@ class _HomeScreenState extends State<HomeScreen> {
                         padding: const EdgeInsets.all(12),
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2, // 2 colunas
+                              crossAxisCount: 2,
                               crossAxisSpacing: 12,
                               mainAxisSpacing: 12,
-                              childAspectRatio: 0.9, // Proporção do card
+                              childAspectRatio: 0.9,
                             ),
                         itemCount: _estabelecimentosFiltrados.length,
                         itemBuilder: (context, index) {
                           final est = _estabelecimentosFiltrados[index];
-                          return EstabelecimentoCard(estabelecimento: est);
+                          return EstabelecimentoCard(
+                            key: ValueKey(est.uid),
+                            estabelecimento: est,
+                          );
                         },
                       ),
                     ),
@@ -293,12 +257,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- WIDGETS AUXILIARES PARA ORGANIZAR O CÓDIGO ---
-
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(16),
-      color: const Color(0xFFE8F1F3), // Cor suave do splash
+      color: const Color(0xFFE8F1F3),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -310,7 +272,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          // Usando seu widget TextFieldInpute para consistência
           TextField(
             controller: _searchController,
             decoration: InputDecoration(
@@ -369,24 +330,82 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// PASSO 3: CRIAR UM WIDGET PARA O CARD DO ESTABELECIMENTO
-class EstabelecimentoCard extends StatelessWidget {
-  final Estabelecimento estabelecimento;
+// =========================================================================
+// ALTERAÇÃO PRINCIPAL: O CARD AGORA É STATEFUL E ESCUTA MUDANÇAS EM TEMPO REAL
+// =========================================================================
+class EstabelecimentoCard extends StatefulWidget {
+  final EstabelecimentoModel estabelecimento;
 
   const EstabelecimentoCard({super.key, required this.estabelecimento});
+
+  @override
+  State<EstabelecimentoCard> createState() => _EstabelecimentoCardState();
+}
+
+class _EstabelecimentoCardState extends State<EstabelecimentoCard> {
+  // Variáveis de estado para os dados em tempo real
+  late bool _filaAberta;
+  late int _contagemFila;
+
+  // Controladores dos listeners para poder cancelá-los depois
+  StreamSubscription? _statusSubscription;
+  StreamSubscription? _contagemSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    // 1. Inicializa o estado com os dados recebidos para exibição imediata
+    _filaAberta = widget.estabelecimento.filaAberta;
+    _contagemFila = 0; // Começa com 0 até o listener trazer o valor real
+
+    // 2. Inicia os listeners para os dados em tempo real
+    final dbRef = FirebaseDatabase.instance.ref();
+
+    // Listener para o status da fila (aberta/fechada)
+    _statusSubscription = dbRef
+        .child('estabelecimentos/${widget.estabelecimento.uid}/filaAberta')
+        .onValue
+        .listen((event) {
+          if (mounted) {
+            // Garante que o widget ainda está na tela
+            setState(() {
+              _filaAberta = (event.snapshot.value as bool?) ?? false;
+            });
+          }
+        });
+
+    // Listener para a contagem de pessoas na fila
+    _contagemSubscription = dbRef
+        .child('filas/${widget.estabelecimento.uid}/clientes')
+        .onValue
+        .listen((event) {
+          if (mounted) {
+            setState(() {
+              _contagemFila = event.snapshot.children.length;
+            });
+          }
+        });
+  }
+
+  @override
+  void dispose() {
+    // 3. Cancela os listeners quando o widget é removido da tela para evitar erros
+    _statusSubscription?.cancel();
+    _contagemSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        // Navega para a tela de detalhes da fila
         Navigator.push(
           context,
           MaterialPageRoute(
             builder:
                 (_) => FilaAtivaScreen(
-                  estabelecimentoId: estabelecimento.id,
-                  nomeEstabelecimento: estabelecimento.nome,
+                  estabelecimentoId: widget.estabelecimento.uid,
+                  nomeEstabelecimento: widget.estabelecimento.name,
                 ),
           ),
         );
@@ -400,12 +419,11 @@ class EstabelecimentoCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // NOME E CATEGORIA
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    estabelecimento.nome,
+                    widget.estabelecimento.name,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -415,16 +433,15 @@ class EstabelecimentoCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    estabelecimento.categoria,
+                    widget.estabelecimento.categoria,
                     style: const TextStyle(color: Colors.black54, fontSize: 12),
                   ),
                 ],
               ),
-
-              // STATUS DA FILA
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 4. A UI agora usa as variáveis de ESTADO (_filaAberta, _contagemFila)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -432,18 +449,16 @@ class EstabelecimentoCard extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color:
-                          estabelecimento.filaAberta
+                          _filaAberta
                               ? Colors.green.shade100
                               : Colors.red.shade100,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      estabelecimento.filaAberta
-                          ? 'FILA ABERTA'
-                          : 'FILA FECHADA',
+                      _filaAberta ? 'FILA ABERTA' : 'FILA FECHADA',
                       style: TextStyle(
                         color:
-                            estabelecimento.filaAberta
+                            _filaAberta
                                 ? Colors.green.shade800
                                 : Colors.red.shade800,
                         fontWeight: FontWeight.bold,
@@ -461,7 +476,7 @@ class EstabelecimentoCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '${estabelecimento.contagemFila} na fila',
+                        '$_contagemFila na fila',
                         style: TextStyle(
                           color: Colors.grey.shade700,
                           fontSize: 14,

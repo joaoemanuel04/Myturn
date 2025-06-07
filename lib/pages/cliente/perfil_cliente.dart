@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/services.dart';
+import 'package:myturn/models/user_model.dart'; // ALTERAÇÃO: Import do model
 
 class PerfilScreen extends StatefulWidget {
   @override
@@ -10,27 +11,24 @@ class PerfilScreen extends StatefulWidget {
 }
 
 class _PerfilScreenState extends State<PerfilScreen> {
-  // --- 1. VARIÁVEIS DE ESTADO ---
   final uid = FirebaseAuth.instance.currentUser!.uid;
   final _formKey = GlobalKey<FormState>();
 
-  // Controllers para os campos editáveis
   late final TextEditingController _nameController;
   late final TextEditingController _phoneController;
 
-  // Variáveis para guardar os dados fixos
   String email = 'Carregando...';
   String dataNascimento = 'Carregando...';
 
-  // Variáveis para controlar a UI
   bool _isLoading = true;
   bool _isEditing = false;
 
-  // --- 2. CICLO DE VIDA (initState, dispose) ---
+  // ALTERAÇÃO: Adicionada uma variável para o objeto do usuário
+  UserModel? _user;
+
   @override
   void initState() {
     super.initState();
-    // Inicializa os controllers
     _nameController = TextEditingController();
     _phoneController = TextEditingController();
     _carregarDados();
@@ -38,37 +36,34 @@ class _PerfilScreenState extends State<PerfilScreen> {
 
   @override
   void dispose() {
-    // Descarta os controllers para liberar memória
     _nameController.dispose();
     _phoneController.dispose();
     super.dispose();
   }
 
-  // --- 3. FUNÇÕES DE DADOS (carregar, salvar) ---
-
   Future<void> _carregarDados() async {
-    // Usamos o caminho 'users/$uid' que você forneceu no código anterior.
-    // Se o seu nó for 'clientes/$uid', apenas troque 'users' por 'clientes' aqui.
+    if (mounted) setState(() => _isLoading = true);
     final snapshot = await FirebaseDatabase.instance.ref('users/$uid').get();
     if (snapshot.exists && mounted) {
-      final dados = Map<String, dynamic>.from(snapshot.value as Map);
+      // ALTERAÇÃO: Conversão para o objeto UserModel
+      _user = UserModel.fromMap(
+        Map<String, dynamic>.from(snapshot.value as Map),
+      );
+
       setState(() {
-        // Popula os controllers com os dados do Firebase
-        _nameController.text = dados['name'] ?? 'Não informado';
-        _phoneController.text = dados['phone'] ?? 'Não informado';
-        // Popula as variáveis de texto simples
-        email = dados['email'] ?? 'Não informado';
-        dataNascimento = dados['birthDate'] ?? 'Não informado';
+        _nameController.text = _user!.name;
+        _phoneController.text = _user!.phone;
+        email = _user!.email;
+        dataNascimento = _user!.birthDate;
         _isLoading = false;
       });
     } else {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _salvarAlteracoes() async {
     if (_formKey.currentState?.validate() ?? false) {
-      // Cria um mapa apenas com os dados que serão atualizados
       final dadosParaAtualizar = {
         'name': _nameController.text.trim(),
         'phone': _phoneController.text.trim(),
@@ -81,7 +76,6 @@ class _PerfilScreenState extends State<PerfilScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Perfil atualizado com sucesso!')),
         );
-        // Volta para o modo de visualização
         setState(() => _isEditing = false);
       } catch (e) {
         ScaffoldMessenger.of(
@@ -92,19 +86,19 @@ class _PerfilScreenState extends State<PerfilScreen> {
   }
 
   void _cancelarEdicao() {
-    // Recarrega os dados originais para descartar quaisquer alterações não salvas
-    _carregarDados();
+    // Recarrega os dados originais a partir do objeto _user
+    if (_user != null) {
+      _nameController.text = _user!.name;
+      _phoneController.text = _user!.phone;
+    }
     setState(() => _isEditing = false);
   }
 
   void _logout() async {
     await FirebaseAuth.instance.signOut();
-    if (mounted) Navigator.of(context).pushReplacementNamed('/login');
+    if (mounted) Navigator.of(context).pushReplacementNamed('/');
   }
 
-  // --- 4. WIDGETS DE UI ---
-
-  // Widget para os campos que NÃO são editáveis
   Widget _buildInfoTile(String label, String value) {
     return ListTile(
       title: Text(
@@ -122,12 +116,10 @@ class _PerfilScreenState extends State<PerfilScreen> {
         title: Text('Meu Perfil'),
         actions: [
           _isEditing
-              // Se estiver editando, mostra o botão "Cancelar"
               ? TextButton(
                 onPressed: _cancelarEdicao,
                 child: Text('Cancelar', style: TextStyle(color: Colors.white)),
               )
-              // Se estiver visualizando, mostra o botão "Editar"
               : IconButton(
                 icon: Icon(Icons.edit),
                 tooltip: 'Editar Perfil',
@@ -143,10 +135,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
                 child: ListView(
                   padding: const EdgeInsets.all(16.0),
                   children: [
-                    // --- CAMPO NOME ---
                     TextFormField(
                       controller: _nameController,
-                      enabled: _isEditing, // Habilita/desabilita a edição
+                      enabled: _isEditing,
                       decoration: InputDecoration(
                         labelText: 'Nome',
                         border:
@@ -162,8 +153,6 @@ class _PerfilScreenState extends State<PerfilScreen> {
                       style: TextStyle(fontSize: 18),
                     ),
                     SizedBox(height: 16),
-
-                    // --- CAMPO TELEFONE ---
                     TextFormField(
                       controller: _phoneController,
                       enabled: _isEditing,
@@ -187,20 +176,14 @@ class _PerfilScreenState extends State<PerfilScreen> {
                       ],
                     ),
                     Divider(height: 32),
-
-                    // --- CAMPOS NÃO EDITÁVEIS ---
                     _buildInfoTile('Email', email),
                     _buildInfoTile('Data de nascimento', dataNascimento),
-
                     SizedBox(height: 32),
-
-                    // --- BOTÕES DE AÇÃO ---
-                    if (_isEditing) // Mostra o botão Salvar apenas no modo de edição
+                    if (_isEditing)
                       ElevatedButton(
                         onPressed: _salvarAlteracoes,
                         child: Text('Salvar Alterações'),
                       ),
-
                     TextButton(
                       onPressed: _logout,
                       child: Text('Sair da conta'),

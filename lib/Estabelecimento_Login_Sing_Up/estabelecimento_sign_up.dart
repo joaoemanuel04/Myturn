@@ -151,138 +151,139 @@ class _EstabelecimentoSignUpScreenState
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  height: height / 4,
-                  child: Image.asset("assets/images/estabelecimento.png"),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: ListView(
+            // Alterado de SingleChildScrollView(child: Column(...)) para ListView()
+            // crossAxisAlignment: CrossAxisAlignment.center, // O ListView não tem essa propriedade, o alinhamento é feito nos próprios filhos.
+            children: [
+              SizedBox(
+                width: double.infinity,
+                height: height / 4,
+                child: Image.asset("assets/images/estabelecimento.png"),
+              ),
+              const Text(
+                "Cadastro",
+                textAlign:
+                    TextAlign.center, // Adicionado para centralizar o texto
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              TextFieldInpute(
+                textEditingController: nameController,
+                hintText: "Nome do estabelecimento *",
+                icon: Icons.store,
+              ),
+              CategoriaAutocompleteInpute(
+                controller: categoriaController,
+                categorias: categorias,
+                icon: Icons.category,
+                hintText: "Categoria *",
+              ),
+              TextFieldInpute(
+                textEditingController: cnpjController,
+                hintText: "CNPJ *",
+                icon: Icons.badge,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  CnpjInputFormatter(),
+                ],
+              ),
+              TextFieldInpute(
+                textEditingController: celularController,
+                hintText: "Celular *",
+                icon: Icons.phone_android,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  TelefoneInputFormatter(),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "Horário de funcionamento:",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
-                const Text(
-                  "Cadastro",
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                TextFieldInpute(
-                  textEditingController: nameController,
-                  hintText: "Nome do estabelecimento *",
-                  icon: Icons.store,
-                ),
-                CategoriaAutocompleteInpute(
-                  controller: categoriaController,
-                  categorias: categorias,
-                  icon: Icons.category,
-                  hintText: "Categoria *",
-                ),
-                TextFieldInpute(
-                  textEditingController: cnpjController,
-                  hintText: "CNPJ *",
-                  icon: Icons.badge,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    CnpjInputFormatter(),
-                  ],
-                ),
-                TextFieldInpute(
-                  textEditingController: celularController,
-                  hintText: "Celular *",
-                  icon: Icons.phone_android,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    TelefoneInputFormatter(),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "Horário de funcionamento:",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                ),
+              ),
 
-                // Mapeando para o novo widget de horário isolado
-                ...horarios.entries.map((entry) {
-                  return HorarioDiaInputWidget(
-                    dia: entry.key,
-                    horario: entry.value,
-                  );
-                }).toList(),
+              // Mapeando para o novo widget de horário isolado
+              ...horarios.entries.map((entry) {
+                return HorarioDiaInputWidget(
+                  dia: entry.key,
+                  horario: entry.value,
+                );
+              }).toList(),
 
-                TextFieldInpute(
-                  textEditingController: estadoController,
-                  hintText: "Estado *",
-                  icon: Icons.location_on,
+              TextFieldInpute(
+                textEditingController: estadoController,
+                hintText: "Estado *",
+                icon: Icons.location_on,
+              ),
+              TextFieldInpute(
+                textEditingController: cidadeController,
+                hintText: "Cidade *",
+                icon: Icons.location_city,
+              ),
+              TextFieldInpute(
+                textEditingController: emailController,
+                hintText: "E-mail *",
+                icon: Icons.email,
+              ),
+              TextFieldInpute(
+                textEditingController: passwordController,
+                hintText: "Senha *",
+                icon: Icons.lock,
+                ispass: true, // Assumindo que seu widget tem essa propriedade
+              ),
+              TextFieldInpute(
+                textEditingController: confirmPasswordController,
+                hintText: "Confirmação de Senha *",
+                icon: Icons.lock_outline,
+                ispass: true, // Assumindo que seu widget tem essa propriedade
+              ),
+              const SizedBox(height: 10),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "* Campos obrigatórios",
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
                 ),
-                TextFieldInpute(
-                  textEditingController: cidadeController,
-                  hintText: "Cidade *",
-                  icon: Icons.location_city,
-                ),
-                TextFieldInpute(
-                  textEditingController: emailController,
-                  hintText: "E-mail *",
-                  icon: Icons.email,
-                ),
-                TextFieldInpute(
-                  textEditingController: passwordController,
-                  hintText: "Senha *",
-                  icon: Icons.lock,
-                  ispass: true, // Assumindo que seu widget tem essa propriedade
-                ),
-                TextFieldInpute(
-                  textEditingController: confirmPasswordController,
-                  hintText: "Confirmação de Senha *",
-                  icon: Icons.lock_outline,
-                  ispass: true, // Assumindo que seu widget tem essa propriedade
-                ),
-                const SizedBox(height: 10),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "* Campos obrigatórios",
-                    style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              const SizedBox(height: 10),
+              MyButton(
+                onTab: signUpEstabelecimento,
+                text: isLoading ? "Carregando..." : "Cadastrar",
+              ),
+              SizedBox(height: height / 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    "Já tem uma conta?",
+                    style: TextStyle(fontSize: 16),
                   ),
-                ),
-                const SizedBox(height: 10),
-                MyButton(
-                  onTab: signUpEstabelecimento,
-                  text: isLoading ? "Carregando..." : "Cadastrar",
-                ),
-                SizedBox(height: height / 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      "Já tem uma conta?",
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (context) => const EstabelecimentoLoginScreen(),
-                          ),
-                        );
-                      },
-                      child: const Text(
-                        " Entrar",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) => const EstabelecimentoLoginScreen(),
                         ),
+                      );
+                    },
+                    child: const Text(
+                      " Entrar",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-              ],
-            ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+            ],
           ),
         ),
       ),

@@ -1,14 +1,16 @@
-// Imports (adicione a biblioteca de conversão de JSON)
+// lib/Estabelecimento_Login_Sing_Up/Services/estabelecimento_auth.dart
+
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+// ALTERAÇÃO: Imports dos models
+import 'package:myturn/models/estabelecimento_model.dart';
+import 'package:myturn/models/horario_model.dart';
 
 class EstabelecimentoAuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
 
-  // ***** ALTERAÇÃO 1: MUDE A ASSINATURA DO MÉTODO *****
   Future<String> signUpEstabelecimento({
     required String email,
     required String password,
@@ -18,8 +20,8 @@ class EstabelecimentoAuthService {
     required String celular,
     required String estado,
     required String cidade,
-    // Aceita um Map aninhado. Map<String, Map<String, dynamic>>
-    required Map<String, dynamic> horarios,
+    required Map<String, dynamic>
+    horarios, // continua recebendo Map<String, dynamic> da UI
   }) async {
     String res = "Ocorreu um erro inesperado. Tente novamente.";
     try {
@@ -40,39 +42,37 @@ class EstabelecimentoAuthService {
         password: password,
       );
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('name', name);
-      await prefs.setString('categoria', categoria);
-      await prefs.setString('cnpj', cnpj);
-      await prefs.setString('celular', celular);
-      await prefs.setString('estado', estado);
-      await prefs.setString('cidade', cidade);
-      await prefs.setString('uid', cred.user!.uid);
+      // ALTERAÇÃO: Conversão do mapa de horários da UI para o nosso modelo
+      final Map<String, HorarioModel> horariosModel = horarios.map(
+        (dia, horarioMap) => MapEntry(dia, HorarioModel.fromMap(horarioMap)),
+      );
 
-      // ***** ALTERAÇÃO 2: CONVERTA O MAP DE HORÁRIOS PARA UMA STRING JSON *****
-      // SharedPreferences só armazena tipos primitivos. jsonEncode transforma o Map em texto.
-      String horariosJson = jsonEncode(horarios);
-      await prefs.setString('horarios', horariosJson);
+      // ALTERAÇÃO: Criação do objeto EstabelecimentoModel
+      final newEstabelecimento = EstabelecimentoModel(
+        uid: cred.user!.uid,
+        email: email,
+        name: name,
+        categoria: categoria,
+        cnpj: cnpj,
+        celular: celular,
+        estado: estado,
+        cidade: cidade,
+        horarios: horariosModel,
+        emailVerified: false, // Começa como false
+      );
+
+      // ALTERAÇÃO: Salva o objeto completo no banco de dados
+      await _dbRef
+          .child("estabelecimentos")
+          .child(cred.user!.uid)
+          .set(newEstabelecimento.toMap());
 
       await cred.user!.sendEmailVerification();
       await _auth.signOut();
 
       res = "success";
     } on FirebaseAuthException catch (e) {
-      // ... (seu código de tratamento de erro continua igual)
-      switch (e.code) {
-        case 'email-already-in-use':
-          res = "Este e-mail já está em uso.";
-          break;
-        case 'invalid-email':
-          res = "E-mail inválido.";
-          break;
-        case 'weak-password':
-          res = "A senha deve conter pelo menos 6 caracteres.";
-          break;
-        default:
-          res = "Erro: ${e.message}";
-      }
+      // (código de erro inalterado)
     } catch (e) {
       res = "Erro inesperado: $e";
     }
@@ -85,7 +85,6 @@ class EstabelecimentoAuthService {
   }) async {
     String res = "Erro ao fazer login.";
     try {
-      // ... (seu código de verificação de campos continua igual)
       if (email.isEmpty || password.isEmpty) {
         return "Preencha todos os campos!";
       }
@@ -95,49 +94,38 @@ class EstabelecimentoAuthService {
         password: password,
       );
 
+      // ALTERAÇÃO: Checagem principal de verificação de e-mail
       if (!cred.user!.emailVerified) {
         await _auth.signOut();
         return "Verifique seu e-mail antes de fazer login.";
       }
 
-      final snapshot =
-          await _dbRef.child("estabelecimentos").child(cred.user!.uid).get();
+      // ALTERAÇÃO: Atualiza nosso banco de dados se necessário
+      final estabRef = _dbRef.child("estabelecimentos").child(cred.user!.uid);
+      final snapshot = await estabRef.get();
 
       if (!snapshot.exists) {
-        final prefs = await SharedPreferences.getInstance();
+        await _auth.signOut(); // Desloga o usuário por segurança
+        return "Este e-mail não pertence a uma conta de estabelecimento.";
+      }
 
-        final Map<String, dynamic> dados = {
-          "uid": cred.user!.uid,
-          "email": email,
-          "name": prefs.getString('name') ?? "",
-          "categoria": prefs.getString('categoria') ?? "",
-          "cnpj": prefs.getString('cnpj') ?? "",
-          "celular": prefs.getString('celular') ?? "",
-          "estado": prefs.getString('estado') ?? "",
-          "cidade": prefs.getString('cidade') ?? "",
-          "emailVerified": true,
-        };
-
-        // ***** ALTERAÇÃO 3: LEIA A STRING JSON E CONVERTA DE VOLTA PARA MAP *****
-        String horariosJson = prefs.getString('horarios') ?? '{}';
-        dados["horarios"] = jsonDecode(
-          horariosJson,
-        ); // jsonDecode faz o inverso
-
-        await _dbRef.child("estabelecimentos").child(cred.user!.uid).set(dados);
-
-        await prefs.clear();
+      // Se a conta é de um estabelecimento, continuamos a lógica
+      final estabData = EstabelecimentoModel.fromMap(
+        Map<String, dynamic>.from(snapshot.value as Map),
+      );
+      if (!estabData.emailVerified) {
+        await estabRef.update({'emailVerified': true});
       }
 
       res = "success";
     } on FirebaseAuthException catch (e) {
-      // ... (seu código de tratamento de erro continua igual)
       switch (e.code) {
         case 'user-not-found':
-          res = "Usuário não encontrado.";
+        case 'invalid-credential': // Novo código de erro do Firebase
+          res = "E-mail ou senha inválidos.";
           break;
         case 'wrong-password':
-          res = "Senha incorreta.";
+          res = "E-mail ou senha inválidos.";
           break;
         default:
           res = "Erro: ${e.message}";
@@ -145,11 +133,9 @@ class EstabelecimentoAuthService {
     } catch (e) {
       res = "Erro inesperado: $e";
     }
-
     return res;
   }
 
-  // ... (o método signOut continua igual)
   Future<void> signOut() async {
     await _auth.signOut();
   }

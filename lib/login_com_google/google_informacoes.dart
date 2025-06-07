@@ -1,12 +1,15 @@
+// lib/login_com_google/google_informacoes.dart
+
 import 'package:brasil_fields/brasil_fields.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:myturn/Cliente_Login_Sign_up/Success.dart';
 import 'package:myturn/Widget/button.dart';
 import 'package:myturn/Widget/snack_bar.dart';
 import 'package:myturn/Widget/text_field.dart';
+import 'package:myturn/models/user_model.dart';
+import 'package:myturn/pages/cliente/home_cliente.dart'; // ALTERAÇÃO: Import do UserModel
 
 class GoogleExtraInfoScreen extends StatefulWidget {
   final String email;
@@ -42,28 +45,38 @@ class _GoogleExtraInfoScreenState extends State<GoogleExtraInfoScreen> {
     setState(() => isLoading = true);
 
     try {
+      // ALTERAÇÃO: Criar uma instância de UserModel
+      final newUser = UserModel(
+        uid: user.uid,
+        name: nameController.text.trim(),
+        email: widget.email,
+        phone: phoneController.text.trim(),
+        birthDate: birthDateController.text.trim(),
+        emailVerified: true, // Usuários do Google já têm e-mail verificado
+      );
+
       final ref = FirebaseDatabase.instance.ref().child('users/${user.uid}');
 
-      await ref.set({
-        'nome': nameController.text.trim(),
-        'email': widget.email,
-        'telefone': phoneController.text.trim(),
-        'data_nascimento': birthDateController.text.trim(),
-        'uid': user.uid,
-      });
+      // ALTERAÇÃO: Usar o método toMap() para salvar os dados
+      await ref.set(newUser.toMap());
 
       setState(() => isLoading = false);
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const SuccessScreen()),
-      );
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      }
     } catch (e) {
       setState(() => isLoading = false);
-      showSnackBar(context, 'Erro ao salvar dados: $e');
+      if (mounted) {
+        showSnackBar(context, 'Erro ao salvar dados: $e');
+      }
     }
   }
 
+  // O método build() continua o mesmo
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -72,6 +85,7 @@ class _GoogleExtraInfoScreenState extends State<GoogleExtraInfoScreen> {
         padding: const EdgeInsets.symmetric(vertical: 20),
         child: Column(
           children: [
+            // A UI não muda
             TextFieldInpute(
               textEditingController: nameController,
               hintText: "Nome completo",
