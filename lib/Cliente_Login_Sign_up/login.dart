@@ -1,8 +1,9 @@
+// lib/Cliente_Login_Sign_up/login.dart
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:myturn/Cliente_Login_Sign_up/Services/auth.dart';
-import 'package:myturn/Cliente_Login_Sign_up/Success.dart';
 import 'package:myturn/Cliente_Login_Sign_up/sign_up.dart';
 import 'package:myturn/Widget/button.dart';
 import 'package:myturn/Widget/snack_bar.dart';
@@ -11,15 +12,19 @@ import 'package:myturn/esqueceu_senha/esqueceu_senha.dart';
 import 'package:myturn/login_com_google/google_auth.dart';
 import 'package:myturn/login_com_google/google_informacoes.dart';
 import 'package:myturn/pages/cliente/home_cliente.dart';
+// ALTERAÇÃO: Imports necessários
+import 'package:myturn/services/deep_link_service.dart';
+import 'package:myturn/services/fila_service.dart';
+import 'package:myturn/pages/cliente/fila_ativa.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _SignupScreenState();
+  State<LoginScreen> createState() => _LoginScreenState(); // Renomeado para consistência
 }
 
-class _SignupScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   bool isLoading = false;
@@ -31,23 +36,81 @@ class _SignupScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // Função para lidar com o fluxo pós-login
+  Future<void> _handlePostLogin() async {
+    // Verifica se há um ID de estabelecimento pendente (se o deep link levou ao login)
+    if (deepLinkService.pendingEstablishmentId != null) {
+      final establishmentId = deepLinkService.pendingEstablishmentId!;
+      deepLinkService.pendingEstablishmentId = null; // Limpa o ID após usá-lo
+
+      if (!mounted) return; // Garante que o widget ainda está montado
+
+      setState(
+        () => isLoading = true,
+      ); // Mostra loading enquanto tenta entrar na fila
+
+      // Tenta entrar na fila com o ID do estabelecimento
+      final filaResult = await FilaService.entrarNaFila(establishmentId);
+
+      if (!mounted)
+        return; // Garante que o widget ainda está montado após a operação assíncrona
+
+      setState(() => isLoading = false); // Esconde loading
+
+      if (filaResult == "success") {
+        // Se entrou na fila com sucesso, NAVEGA PARA A HOME E DEPOIS PARA A FILA ATIVA,
+        // REMOVENDO TODAS AS ROTAS ANTERIORES.
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const HomeScreen(),
+          ), // Rota base: HomeScreen
+          (Route<dynamic> route) => false, // Remove todas as rotas anteriores
+        );
+        // Agora, empilha a FilaAtivaScreen no topo da HomeScreen
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder:
+                (context) => FilaAtivaScreen(
+                  estabelecimentoId: establishmentId,
+                  nomeEstabelecimento:
+                      "Carregando...", // O nome será carregado na tela FilaAtiva
+                ),
+          ),
+        );
+      } else {
+        // Se houve erro ao entrar na fila, mostra o erro e navega para HomeScreen,
+        // REMOVENDO TODAS AS ROTAS ANTERIORES.
+        showSnackBar(context, filaResult);
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const HomeScreen(),
+          ), // Rota base: HomeScreen
+          (Route<dynamic> route) => false, // Remove todas as rotas anteriores
+        );
+      }
+    } else {
+      // Se não há deep link pendente, apenas navega para HomeScreen,
+      // REMOVENDO TODAS AS ROTAS ANTERIORES.
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => const HomeScreen(),
+        ), // Rota base: HomeScreen
+        (Route<dynamic> route) => false, // Remove todas as rotas anteriores
+      );
+    }
+  }
+
   void loginUsers() async {
+    setState(() => isLoading = true);
     String res = await AuthServicews().loginUser(
       email: emailController.text.trim(),
       password: passwordController.text.trim(),
     );
+    setState(() => isLoading = false);
 
     if (res == "success") {
-      setState(() {
-        isLoading = true;
-      });
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (context) => HomeScreen()));
+      await _handlePostLogin(); // Chama a função para lidar com a navegação pós-login
     } else {
-      setState(() {
-        isLoading = false;
-      });
       showSnackBar(context, res);
     }
   }
@@ -102,43 +165,38 @@ class _SignupScreenState extends State<LoginScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 10), // Espaçamento antes do botão do Google
-            // ### BOTÃO DO GOOGLE ATUALIZADO EXATAMENTE COMO VOCÊ PEDIU ###
+            const SizedBox(height: 10),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
               onPressed: () async {
+                setState(() => isLoading = true);
                 User? user = await FirebaseServices().signInWithGoogle();
-                // A verificação 'if (mounted)' garante que o contexto ainda é válido
-                // após a operação assíncrona, evitando erros.
-                if (mounted) {
-                  if (user != null) {
-                    final ref = FirebaseDatabase.instance.ref(
-                      'users/${user.uid}',
-                    );
-                    final snapshot = await ref.get();
+                setState(() => isLoading = false);
 
-                    // Verifica novamente se o widget ainda está montado
-                    if (mounted) {
-                      if (!snapshot.exists) {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (_) => GoogleExtraInfoScreen(
-                                  email: user.email ?? '',
-                                ),
-                          ),
-                        );
-                      } else {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (_) => const HomeScreen()),
-                        );
-                      }
-                    }
+                if (!mounted) return;
+
+                if (user != null) {
+                  final ref = FirebaseDatabase.instance.ref(
+                    'users/${user.uid}',
+                  );
+                  final snapshot = await ref.get();
+
+                  if (!mounted) return;
+
+                  if (!snapshot.exists) {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (_) =>
+                                GoogleExtraInfoScreen(email: user.email ?? ''),
+                      ),
+                    );
                   } else {
-                    showSnackBar(context, "Erro ao fazer login com Google");
+                    await _handlePostLogin(); // Chama para lidar com a navegação pós-login
                   }
+                } else {
+                  showSnackBar(context, "Erro ao fazer login com Google");
                 }
               },
               child: Row(

@@ -1,14 +1,10 @@
-// lib/pages/estabelecimento/estabelecimento_home_screen.dart
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
-// ALTERAÇÃO: Import do model
 import 'package:myturn/models/cliente_fila_model.dart';
-
-// ALTERAÇÃO: Classe ClienteNaFila local foi REMOVIDA
+import 'package:qr_flutter/qr_flutter.dart'; // ALTERAÇÃO: Importe a biblioteca do QR Code
 
 class EstabelecimentoHomeScreen extends StatefulWidget {
   const EstabelecimentoHomeScreen({super.key});
@@ -28,7 +24,6 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
   StreamSubscription? _statusFilaSubscription;
   StreamSubscription? _metricasSubscription;
 
-  // ALTERAÇÃO: A lista agora usa o ClienteFilaModel
   List<ClienteFilaModel> _fila = [];
   bool _isFilaAberta = false;
   bool _isLoading = true;
@@ -48,16 +43,55 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
     super.dispose();
   }
 
-  void _inicializarDados() {
+  // ALTERAÇÃO: Adicione este método para mostrar o QR Code
+  void _mostrarQrCode() {
     final user = _auth.currentUser;
     if (user == null) return;
 
+    // Este é o link que o QR Code irá conter.
+    // Usamos um domínio de exemplo "myturn.app". Você precisará de um domínio real para isso funcionar na produção.
+    final String deepLink = "https://myturn.app/fila?id=${user.uid}";
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text("QR Code para Fila"),
+            content: SizedBox(
+              width: 250,
+              height: 250,
+              child: QrImageView(
+                data: deepLink, // O QR Code conterá o Deep Link
+                version: QrVersions.auto,
+                size: 200.0,
+                gapless: false,
+                embeddedImage: const AssetImage(
+                  'assets/icon/icon.png',
+                ), // Opcional: Adiciona seu logo no meio
+                embeddedImageStyle: const QrEmbeddedImageStyle(
+                  size: Size(40, 40),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                child: const Text("Fechar"),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // Todos os outros métodos (_inicializarDados, _escutarMetricas, etc.) continuam iguais.
+  void _inicializarDados() {
+    final user = _auth.currentUser;
+    if (user == null) return;
     _estabelecimentoRef = FirebaseDatabase.instance.ref(
       'estabelecimentos/${user.uid}',
     );
     _filaRef = FirebaseDatabase.instance.ref('filas/${user.uid}/clientes');
     _metricasRef = _estabelecimentoRef.child('metricas');
-
     _escutarStatusDaFila();
     _escutarMudancasDaFila();
     _escutarMetricas();
@@ -93,8 +127,6 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
     _filaSubscription = _filaRef.onValue.listen((event) {
       if (event.snapshot.exists && event.snapshot.value is Map) {
         final data = Map<String, dynamic>.from(event.snapshot.value as Map);
-
-        // ALTERAÇÃO: Usando o factory do ClienteFilaModel
         final novaFila =
             data.entries
                 .map(
@@ -104,7 +136,6 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
                   ),
                 )
                 .toList();
-
         novaFila.sort((a, b) => a.horaEntrada.compareTo(b.horaEntrada));
         if (mounted) setState(() => _fila = novaFila);
       } else {
@@ -138,16 +169,13 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
 
   Future<void> _chamarProximoCliente() async {
     if (_fila.isEmpty) return;
-
     final proximoCliente = _fila.first;
-
     final TransactionResult result = await _metricasRef
         .child('atendidosHoje')
         .runTransaction((Object? currentData) {
           int currentValue = (currentData as int?) ?? 0;
           return Transaction.success(currentValue + 1);
         });
-
     if (result.committed) {
       await _removerCliente(proximoCliente.uid);
       if (mounted) {
@@ -175,6 +203,12 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
       appBar: AppBar(
         title: const Text('Painel de Controle'),
         actions: [
+          // ALTERAÇÃO: Adicione este botão para gerar o QR Code
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner),
+            onPressed: _mostrarQrCode,
+            tooltip: 'Exibir QR Code da Fila',
+          ),
           PopupMenuButton<String>(
             onSelected: (value) async {
               if (value == 'sair') {
@@ -195,6 +229,7 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
           ),
         ],
       ),
+      // O resto do build continua igual
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
@@ -218,9 +253,10 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
     );
   }
 
+  // Os outros widgets (_buildProximoClienteCard, _buildFilaDeEsperaList, etc) continuam iguais.
   Widget _buildProximoClienteCard() {
+    /* ... */
     final proximoCliente = _fila.isNotEmpty ? _fila.first : null;
-
     return Card(
       elevation: 4,
       color: Theme.of(context).primaryColor,
@@ -239,7 +275,7 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              proximoCliente?.nome ?? 'Ninguém na fila', // ALTERAÇÃO: Usa .nome
+              proximoCliente?.nome ?? 'Ninguém na fila',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 28,
@@ -249,7 +285,7 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
             ),
             if (proximoCliente != null)
               Text(
-                'Entrou às ${DateFormat('HH:mm').format(proximoCliente.horaEntrada)}', // ALTERAÇÃO: Usa .horaEntrada
+                'Entrou às ${DateFormat('HH:mm').format(proximoCliente.horaEntrada)}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 14, color: Colors.white70),
               ),
@@ -271,6 +307,7 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
   }
 
   Widget _buildFilaDeEsperaList() {
+    /* ... */
     if (_fila.length <= 1) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 32.0),
@@ -282,9 +319,7 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
         ),
       );
     }
-
     final filaDeEspera = _fila.sublist(1);
-
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -330,9 +365,8 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
     );
   }
 
-  // Widgets _buildControleFilaCard e _buildMetricasDashboard não precisam de alteração
   Widget _buildControleFilaCard() {
-    //... inalterado
+    /* ... */
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -378,7 +412,7 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
   }
 
   Widget _buildMetricasDashboard() {
-    //... inalterado
+    /* ... */
     return Row(
       children: [
         Expanded(
@@ -404,7 +438,7 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
 }
 
 class _InfoCard extends StatelessWidget {
-  //... inalterado
+  /* ... */
   final String titulo;
   final String valor;
   final IconData icone;
