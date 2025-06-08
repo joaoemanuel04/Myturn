@@ -1,5 +1,3 @@
-// lib/models/estabelecimento_model.dart
-
 import 'package:myturn/models/horario_model.dart';
 
 class EstabelecimentoModel {
@@ -13,7 +11,10 @@ class EstabelecimentoModel {
   final String cidade;
   final bool filaAberta;
   final int contagemFila;
-  final bool emailVerified; // ALTERAÇÃO: Novo campo adicionado
+  final bool emailVerified;
+  // ALTERAÇÃO: Adicionados campos para as coordenadas
+  final double? latitude;
+  final double? longitude;
   final Map<String, HorarioModel> horarios;
 
   EstabelecimentoModel({
@@ -27,7 +28,10 @@ class EstabelecimentoModel {
     required this.cidade,
     this.filaAberta = false,
     this.contagemFila = 0,
-    this.emailVerified = false, // ALTERAÇÃO: Novo campo adicionado
+    this.emailVerified = false,
+    // ALTERAÇÃO: Adicionados ao construtor como opcionais
+    this.latitude,
+    this.longitude,
     required this.horarios,
   });
 
@@ -51,9 +55,12 @@ class EstabelecimentoModel {
       celular: map['celular'] ?? '',
       estado: map['estado'] ?? '',
       cidade: map['cidade'] ?? '',
+      // ALTERAÇÃO: Lendo as coordenadas do mapa do Firebase.
+      // A conversão (cast) para num e depois para double garante segurança.
+      latitude: (map['latitude'] as num?)?.toDouble(),
+      longitude: (map['longitude'] as num?)?.toDouble(),
       filaAberta: map['filaAberta'] ?? false,
-      emailVerified:
-          map['emailVerified'] ?? false, // ALTERAÇÃO: Novo campo adicionado
+      emailVerified: map['emailVerified'] ?? false,
       horarios: horariosConvertidos,
     );
   }
@@ -69,17 +76,23 @@ class EstabelecimentoModel {
       'estado': estado,
       'cidade': cidade,
       'filaAberta': filaAberta,
-      'emailVerified': emailVerified, // ALTERAÇÃO: Novo campo adicionado
+      'emailVerified': emailVerified,
+      // ALTERAÇÃO: Adicionando as coordenadas ao mapa para salvar no Firebase
+      'latitude': latitude,
+      'longitude': longitude,
       'horarios': horarios.map(
         (dia, horario) => MapEntry(dia, horario.toMap()),
       ),
     };
   }
 
+  // ALTERAÇÃO: Adicionando latitude e longitude ao método copyWith
   EstabelecimentoModel copyWith({
     bool? filaAberta,
     int? contagemFila,
     bool? emailVerified,
+    double? latitude,
+    double? longitude,
   }) {
     return EstabelecimentoModel(
       uid: uid,
@@ -93,9 +106,9 @@ class EstabelecimentoModel {
       horarios: horarios,
       filaAberta: filaAberta ?? this.filaAberta,
       contagemFila: contagemFila ?? this.contagemFila,
-      emailVerified:
-          emailVerified ??
-          this.emailVerified, // ALTERAÇÃO: Novo campo adicionado
+      emailVerified: emailVerified ?? this.emailVerified,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
     );
   }
 }

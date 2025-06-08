@@ -4,7 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
 import 'package:myturn/models/cliente_fila_model.dart';
+import 'package:myturn/models/estabelecimento_model.dart';
 import 'package:qr_flutter/qr_flutter.dart'; // ALTERAÇÃO: Importe a biblioteca do QR Code
+import 'package:myturn/services/pdf_service.dart';
 
 class EstabelecimentoHomeScreen extends StatefulWidget {
   const EstabelecimentoHomeScreen({super.key});
@@ -29,6 +31,9 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
   bool _isLoading = true;
   int _atendidosHoje = 0;
 
+  // ALTERAÇÃO: Variável para armazenar os dados do estabelecimento logado
+  EstabelecimentoModel? _establishment;
+
   @override
   void initState() {
     super.initState();
@@ -43,13 +48,15 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
     super.dispose();
   }
 
-  // ALTERAÇÃO: Adicione este método para mostrar o QR Code
+  // CORREÇÃO: Método para mostrar o QR Code agora usa a variável _establishment
   void _mostrarQrCode() {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    // Este é o link que o QR Code irá conter.
-    // Usamos um domínio de exemplo "myturn.app". Você precisará de um domínio real para isso funcionar na produção.
+    // Usa o nome do estabelecimento armazenado na variável _establishment
+    final String establishmentName =
+        _establishment?.name ?? "Meu Estabelecimento";
+
     final String deepLink = "https://myturn.app/fila?id=${user.uid}";
 
     showDialog(
@@ -61,19 +68,22 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
               width: 250,
               height: 250,
               child: QrImageView(
-                data: deepLink, // O QR Code conterá o Deep Link
+                data: deepLink,
                 version: QrVersions.auto,
                 size: 200.0,
-                gapless: false,
-                embeddedImage: const AssetImage(
-                  'assets/icon/icon.png',
-                ), // Opcional: Adiciona seu logo no meio
-                embeddedImageStyle: const QrEmbeddedImageStyle(
-                  size: Size(40, 40),
-                ),
               ),
             ),
             actions: [
+              TextButton(
+                child: const Text("Salvar/Imprimir PDF"),
+                onPressed: () {
+                  PdfService.generateAndPrintQrPdf(
+                    establishmentName:
+                        establishmentName, // Passa o nome correto
+                    deepLink: deepLink,
+                  );
+                },
+              ),
               TextButton(
                 child: const Text("Fechar"),
                 onPressed: () => Navigator.of(context).pop(),
@@ -83,15 +93,27 @@ class _EstabelecimentoHomeScreenState extends State<EstabelecimentoHomeScreen> {
     );
   }
 
-  // Todos os outros métodos (_inicializarDados, _escutarMetricas, etc.) continuam iguais.
   void _inicializarDados() {
     final user = _auth.currentUser;
     if (user == null) return;
+
     _estabelecimentoRef = FirebaseDatabase.instance.ref(
       'estabelecimentos/${user.uid}',
     );
     _filaRef = FirebaseDatabase.instance.ref('filas/${user.uid}/clientes');
     _metricasRef = _estabelecimentoRef.child('metricas');
+
+    // ALTERAÇÃO: Adicionada a busca pelos dados do próprio estabelecimento
+    _estabelecimentoRef.get().then((snapshot) {
+      if (snapshot.exists && mounted) {
+        setState(() {
+          _establishment = EstabelecimentoModel.fromMap(
+            Map<String, dynamic>.from(snapshot.value as Map),
+          );
+        });
+      }
+    });
+
     _escutarStatusDaFila();
     _escutarMudancasDaFila();
     _escutarMetricas();

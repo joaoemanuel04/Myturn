@@ -9,7 +9,9 @@ import 'package:myturn/pages/cliente/fila_ativa.dart';
 import 'package:myturn/pages/cliente/perfil_cliente.dart';
 import 'package:myturn/pages/cliente/reservas.dart';
 import 'package:myturn/pages/cliente/home_cliente.dart'; // Certifique-se de importar a HomeScreen
+import 'package:myturn/pages/estabelecimento/estabelecimento_home_screen.dart';
 import 'package:myturn/services/deep_link_service.dart';
+import 'package:myturn/services/notification_service.dart';
 import 'pages/splash_page.dart'; // Sua SplashPage original
 import 'package:myturn/pages/initial_router.dart'; // O novo InitialRouterPage
 
@@ -17,6 +19,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   await deepLinkService.init(); // Inicializa o serviço de deep link
+  await NotificationService().initNotifications();
   runApp(const MyApp());
 }
 
@@ -87,6 +90,7 @@ class MyApp extends StatelessWidget {
         '/perfil': (context) => PerfilScreen(),
         '/reservas': (context) => MinhasReservasScreen(),
         '/editar_perfil': (context) => EditarPerfilScreen(),
+        '/estabelecimento_home': (context) => const EstabelecimentoHomeScreen(),
         // Se você tiver uma rota específica para o login de estabelecimento
         // '/estabelecimento_login': (context) => const EstabelecimentoLoginScreen(),
       },

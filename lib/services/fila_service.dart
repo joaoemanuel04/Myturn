@@ -15,6 +15,19 @@ class FilaService {
     try {
       final dbRef = FirebaseDatabase.instance.ref();
 
+      final estabSnapshot =
+          await dbRef.child('estabelecimentos/$estabelecimentoId').get();
+      if (!estabSnapshot.exists) {
+        return "Estabelecimento não encontrado.";
+      }
+      final estabData = Map<String, dynamic>.from(estabSnapshot.value as Map);
+      final bool filaAberta = estabData['filaAberta'] ?? false;
+
+      // 2. Se a fila NÃO estiver aberta, retorna um erro e para a execução
+      if (!filaAberta) {
+        return "Desculpe, a fila para este estabelecimento está fechada no momento.";
+      }
+
       // Busca o nome do cliente no perfil dele
       final clienteSnapshot = await dbRef.child('users/${user.uid}').get();
       if (!clienteSnapshot.exists) {

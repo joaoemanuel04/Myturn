@@ -7,6 +7,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:myturn/Widget/snack_bar.dart';
 import 'package:myturn/models/cliente_fila_model.dart';
 import 'package:myturn/services/fila_service.dart';
+import 'package:myturn/pages/cliente/map_view_screen.dart';
 
 class FilaAtivaScreen extends StatefulWidget {
   final String estabelecimentoId;
@@ -184,7 +185,27 @@ class _FilaAtivaScreenState extends State<FilaAtivaScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_currentEstabelecimentoName)),
+      appBar: AppBar(
+        title: Text(_currentEstabelecimentoName),
+        // ALTERAÇÃO: Adiciona um botão de ação na AppBar
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.location_on_outlined),
+            tooltip: 'Ver no mapa',
+            onPressed: () {
+              // Navega para a tela do mapa, passando o ID do estabelecimento atual
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder:
+                      (context) => MapViewScreen(
+                        establishmentId: widget.estabelecimentoId,
+                      ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
       body: Center(
         child:
             _isProcessing

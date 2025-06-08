@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:myturn/pages/cliente/map_view_screen.dart';
 import 'fila_ativa.dart';
 import 'package:myturn/models/estabelecimento_model.dart';
 // O scanner ainda não foi implementado, então podemos deixar o import comentado ou removê-lo por enquanto.
@@ -21,13 +22,14 @@ class _HomeScreenState extends State<HomeScreen> {
   String? cidade;
   String _localizacaoDisplay = "Buscando sua localização...";
 
-  String _categoriaSelecionada = "Restaurante";
+  String _categoriaSelecionada = "Todos";
   final TextEditingController _searchController = TextEditingController();
 
   List<EstabelecimentoModel> _todosEstabelecimentos = [];
   List<EstabelecimentoModel> _estabelecimentosFiltrados = [];
 
   final List<String> categorias = [
+    "Todos",
     "Restaurante",
     "Bar",
     "Lanchonete",
@@ -161,10 +163,17 @@ class _HomeScreenState extends State<HomeScreen> {
   void _filtrarEstabelecimentos() {
     List<EstabelecimentoModel> filtrados =
         _todosEstabelecimentos.where((est) {
-          final correspondeCategoria = est.categoria == _categoriaSelecionada;
+          // 1. Verifica se a categoria corresponde OU se "Todos" está selecionado
+          final correspondeCategoria =
+              _categoriaSelecionada == "Todos" ||
+              est.categoria == _categoriaSelecionada;
+
+          // 2. Verifica se o texto de busca corresponde ao nome do estabelecimento
           final correspondeBusca = est.name.toLowerCase().contains(
             _searchController.text.toLowerCase(),
           );
+
+          // O estabelecimento é exibido se corresponder a AMBAS as condições
           return correspondeCategoria && correspondeBusca;
         }).toList();
 
@@ -183,6 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: const Color(0xFF2C7DA0),
         elevation: 0,
       ),
+
       drawer: Drawer(
         child: ListView(
           children: [

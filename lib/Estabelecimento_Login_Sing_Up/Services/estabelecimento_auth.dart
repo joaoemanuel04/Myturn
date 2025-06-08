@@ -20,11 +20,17 @@ class EstabelecimentoAuthService {
     required String celular,
     required String estado,
     required String cidade,
+    required double? latitude,
+    required double? longitude,
     required Map<String, dynamic>
     horarios, // continua recebendo Map<String, dynamic> da UI
   }) async {
     String res = "Ocorreu um erro inesperado. Tente novamente.";
     try {
+      if (latitude == null || longitude == null) {
+        return "Localização não foi selecionada no mapa.";
+      }
+
       if (email.isEmpty ||
           password.isEmpty ||
           name.isEmpty ||
@@ -57,6 +63,8 @@ class EstabelecimentoAuthService {
         celular: celular,
         estado: estado,
         cidade: cidade,
+        latitude: latitude,
+        longitude: longitude,
         horarios: horariosModel,
         emailVerified: false, // Começa como false
       );

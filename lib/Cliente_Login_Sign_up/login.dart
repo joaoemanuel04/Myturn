@@ -16,6 +16,7 @@ import 'package:myturn/pages/cliente/home_cliente.dart';
 import 'package:myturn/services/deep_link_service.dart';
 import 'package:myturn/services/fila_service.dart';
 import 'package:myturn/pages/cliente/fila_ativa.dart';
+import 'package:myturn/services/notification_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -39,6 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // Função para lidar com o fluxo pós-login
   Future<void> _handlePostLogin() async {
     // Verifica se há um ID de estabelecimento pendente (se o deep link levou ao login)
+    await NotificationService().saveTokenToDatabase();
     if (deepLinkService.pendingEstablishmentId != null) {
       final establishmentId = deepLinkService.pendingEstablishmentId!;
       deepLinkService.pendingEstablishmentId = null; // Limpa o ID após usá-lo
@@ -193,6 +195,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     );
                   } else {
+                    await NotificationService().saveTokenToDatabase();
                     await _handlePostLogin(); // Chama para lidar com a navegação pós-login
                   }
                 } else {

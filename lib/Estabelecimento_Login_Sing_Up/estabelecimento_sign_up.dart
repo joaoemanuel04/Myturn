@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:brasil_fields/brasil_fields.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 // Seus imports personalizados (verifique os caminhos)
 import 'package:myturn/Estabelecimento_Login_Sing_Up/Services/estabelecimento_auth.dart';
 import 'package:myturn/Estabelecimento_Login_Sing_Up/estabelecimento_success.dart';
 import 'package:myturn/Estabelecimento_Login_Sing_Up/estabelecimento_login.dart';
+import 'package:myturn/Estabelecimento_Login_Sing_Up/map_picker_screen.dart';
 import 'package:myturn/Widget/button.dart';
 import 'package:myturn/Widget/snack_bar.dart';
 import 'package:myturn/Widget/text_field.dart';
+import 'package:myturn/esqueceu_senha/esqueceu_senha.dart';
 
 //############################################################################
 //###                                                                      ###
@@ -79,6 +82,8 @@ class _EstabelecimentoSignUpScreenState
 
   bool isLoading = false;
 
+  LatLng? _selectedLocation;
+
   // IMPORTANTE: Adicionar o método dispose para liberar os recursos
   @override
   void dispose() {
@@ -99,6 +104,25 @@ class _EstabelecimentoSignUpScreenState
     super.dispose();
   }
 
+  Future<void> _openMapPicker() async {
+    // Abre a tela do mapa e aguarda o usuário selecionar uma localização
+    final LatLng? pickedLocation = await Navigator.of(context).push(
+      MaterialPageRoute(
+        // VERIFIQUE SE O NOME AQUI ESTÁ CORRETO:
+        builder: (context) => const MapPickerScreen(),
+      ),
+    );
+
+    if (pickedLocation != null) {
+      setState(() {
+        _selectedLocation = pickedLocation;
+      });
+      if (mounted) {
+        showSnackBar(context, 'Localização selecionada com sucesso!');
+      }
+    }
+  }
+
   void signUpEstabelecimento() async {
     // Adicione suas validações aqui antes de prosseguir
     if (passwordController.text != confirmPasswordController.text) {
@@ -117,6 +141,13 @@ class _EstabelecimentoSignUpScreenState
       });
     });
 
+    if (_selectedLocation == null) {
+      showSnackBar(context, "Por favor, selecione a localização no mapa.");
+      // Se você tiver uma variável de loading, é bom pará-la aqui também
+      // setState(() => isLoading = false);
+      return;
+    }
+
     String res = await EstabelecimentoAuthService().signUpEstabelecimento(
       email: emailController.text.trim(),
       password: passwordController.text.trim(),
@@ -127,6 +158,9 @@ class _EstabelecimentoSignUpScreenState
       estado: estadoController.text.trim(),
       cidade: cidadeController.text.trim(),
       horarios: horariosData,
+      // ALTERAÇÃO: Adicionando os 2 campos restantes
+      latitude: _selectedLocation!.latitude,
+      longitude: _selectedLocation!.longitude,
     );
 
     if (mounted) {
@@ -198,6 +232,42 @@ class _EstabelecimentoSignUpScreenState
                 ],
               ),
               const SizedBox(height: 10),
+              const Text(
+                "Endereço e Localização",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              TextFieldInpute(
+                textEditingController: estadoController,
+                hintText: "Estado *",
+                icon: Icons.location_on,
+              ),
+              TextFieldInpute(
+                textEditingController: cidadeController,
+                hintText: "Cidade *",
+                icon: Icons.location_city,
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                icon: Icon(
+                  _selectedLocation == null
+                      ? Icons.map_outlined
+                      : Icons.check_circle,
+                  color:
+                      _selectedLocation == null
+                          ? Theme.of(context).primaryColor
+                          : Colors.green,
+                ),
+                label: Text(
+                  _selectedLocation == null
+                      ? "Selecionar Localização Exata no Mapa *"
+                      : "Localização Selecionada!",
+                ),
+                onPressed: _openMapPicker,
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 10),
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -213,17 +283,6 @@ class _EstabelecimentoSignUpScreenState
                   horario: entry.value,
                 );
               }).toList(),
-
-              TextFieldInpute(
-                textEditingController: estadoController,
-                hintText: "Estado *",
-                icon: Icons.location_on,
-              ),
-              TextFieldInpute(
-                textEditingController: cidadeController,
-                hintText: "Cidade *",
-                icon: Icons.location_city,
-              ),
               TextFieldInpute(
                 textEditingController: emailController,
                 hintText: "E-mail *",
@@ -241,6 +300,7 @@ class _EstabelecimentoSignUpScreenState
                 icon: Icons.lock_outline,
                 ispass: true, // Assumindo que seu widget tem essa propriedade
               ),
+              const ForgotPassword(),
               const SizedBox(height: 10),
               const Align(
                 alignment: Alignment.centerLeft,
