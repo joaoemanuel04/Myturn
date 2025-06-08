@@ -1,5 +1,5 @@
 // Myturn/lib/main.dart
-
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -20,6 +20,7 @@ void main() async {
   await Firebase.initializeApp();
   await deepLinkService.init(); // Inicializa o serviço de deep link
   await NotificationService().initNotifications();
+  await dotenv.load(fileName: "cofre.env");
   runApp(const MyApp());
 }
 

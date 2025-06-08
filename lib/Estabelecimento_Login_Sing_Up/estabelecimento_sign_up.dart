@@ -11,7 +11,6 @@ import 'package:myturn/Estabelecimento_Login_Sing_Up/map_picker_screen.dart';
 import 'package:myturn/Widget/button.dart';
 import 'package:myturn/Widget/snack_bar.dart';
 import 'package:myturn/Widget/text_field.dart';
-import 'package:myturn/esqueceu_senha/esqueceu_senha.dart';
 
 //############################################################################
 //###                                                                      ###
@@ -300,7 +299,6 @@ class _EstabelecimentoSignUpScreenState
                 icon: Icons.lock_outline,
                 ispass: true, // Assumindo que seu widget tem essa propriedade
               ),
-              const ForgotPassword(),
               const SizedBox(height: 10),
               const Align(
                 alignment: Alignment.centerLeft,

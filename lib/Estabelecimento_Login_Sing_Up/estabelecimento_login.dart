@@ -6,6 +6,7 @@ import 'package:myturn/Widget/button.dart';
 import 'package:myturn/Widget/text_field.dart';
 import 'package:myturn/Widget/snack_bar.dart';
 import 'package:myturn/Estabelecimento_Login_Sing_Up/Services/estabelecimento_auth.dart';
+import 'package:myturn/esqueceu_senha/esqueceu_senha.dart';
 
 class EstabelecimentoLoginScreen extends StatefulWidget {
   const EstabelecimentoLoginScreen({super.key});
@@ -89,6 +90,7 @@ class _EstabelecimentoLoginScreenState
               icon: Icons.lock,
             ),
             const SizedBox(height: 24),
+            const ForgotPassword(),
 
             // Seu botão de login.
             MyButton(

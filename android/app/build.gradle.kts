@@ -1,9 +1,20 @@
+// No arquivo android/app/build.gradle.kts
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
+}
+
+import java.util.Properties
+
+// PASSO 2: O CÓDIGO QUE LÊ O ARQUIVO VAI AQUI, FORA DO BLOCO 'android'
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("../local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.reader())
 }
 
 android {
@@ -29,6 +40,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["GOOGLE_API_KEY"] = localProperties.getProperty("GOOGLE_API_KEY") ?: ""
     }
 
     buildTypes {
