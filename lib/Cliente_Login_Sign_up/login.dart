@@ -12,7 +12,6 @@ import 'package:myturn/esqueceu_senha/esqueceu_senha.dart';
 import 'package:myturn/login_com_google/google_auth.dart';
 import 'package:myturn/login_com_google/google_informacoes.dart';
 import 'package:myturn/pages/cliente/home_cliente.dart';
-// ALTERAÇÃO: Imports necessários
 import 'package:myturn/services/deep_link_service.dart';
 import 'package:myturn/services/fila_service.dart';
 import 'package:myturn/pages/cliente/fila_ativa.dart';
@@ -22,7 +21,7 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState(); // Renomeado para consistência
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
@@ -37,67 +36,47 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Função para lidar com o fluxo pós-login
   Future<void> _handlePostLogin() async {
-    // Verifica se há um ID de estabelecimento pendente (se o deep link levou ao login)
     await NotificationService().saveTokenToDatabase();
     if (deepLinkService.pendingEstablishmentId != null) {
       final establishmentId = deepLinkService.pendingEstablishmentId!;
-      deepLinkService.pendingEstablishmentId = null; // Limpa o ID após usá-lo
+      deepLinkService.pendingEstablishmentId = null;
 
-      if (!mounted) return; // Garante que o widget ainda está montado
+      if (!mounted) return;
 
-      setState(
-        () => isLoading = true,
-      ); // Mostra loading enquanto tenta entrar na fila
+      setState(() => isLoading = true);
 
-      // Tenta entrar na fila com o ID do estabelecimento
       final filaResult = await FilaService.entrarNaFila(establishmentId);
 
-      if (!mounted)
-        return; // Garante que o widget ainda está montado após a operação assíncrona
+      if (!mounted) return;
 
-      setState(() => isLoading = false); // Esconde loading
+      setState(() => isLoading = false);
 
       if (filaResult == "success") {
-        // Se entrou na fila com sucesso, NAVEGA PARA A HOME E DEPOIS PARA A FILA ATIVA,
-        // REMOVENDO TODAS AS ROTAS ANTERIORES.
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (context) => const HomeScreen(),
-          ), // Rota base: HomeScreen
-          (Route<dynamic> route) => false, // Remove todas as rotas anteriores
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (Route<dynamic> route) => false,
         );
-        // Agora, empilha a FilaAtivaScreen no topo da HomeScreen
         Navigator.of(context).push(
           MaterialPageRoute(
             builder:
                 (context) => FilaAtivaScreen(
                   estabelecimentoId: establishmentId,
-                  nomeEstabelecimento:
-                      "Carregando...", // O nome será carregado na tela FilaAtiva
+                  nomeEstabelecimento: "Carregando...",
                 ),
           ),
         );
       } else {
-        // Se houve erro ao entrar na fila, mostra o erro e navega para HomeScreen,
-        // REMOVENDO TODAS AS ROTAS ANTERIORES.
         showSnackBar(context, filaResult);
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (context) => const HomeScreen(),
-          ), // Rota base: HomeScreen
-          (Route<dynamic> route) => false, // Remove todas as rotas anteriores
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (Route<dynamic> route) => false,
         );
       }
     } else {
-      // Se não há deep link pendente, apenas navega para HomeScreen,
-      // REMOVENDO TODAS AS ROTAS ANTERIORES.
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-          builder: (context) => const HomeScreen(),
-        ), // Rota base: HomeScreen
-        (Route<dynamic> route) => false, // Remove todas as rotas anteriores
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+        (Route<dynamic> route) => false,
       );
     }
   }
@@ -111,7 +90,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => isLoading = false);
 
     if (res == "success") {
-      await _handlePostLogin(); // Chama a função para lidar com a navegação pós-login
+      await _handlePostLogin();
     } else {
       showSnackBar(context, res);
     }
@@ -129,26 +108,26 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 30),
             TextFieldInpute(
               textEditingController: emailController,
-              hintText: "Enter your email",
+              hintText: "Digite seu email",
               icon: Icons.email,
             ),
             TextFieldInpute(
               ispass: true,
               textEditingController: passwordController,
-              hintText: "Enter your password",
+              hintText: "Digite sua senha",
               icon: Icons.lock,
             ),
             const ForgotPassword(),
             const SizedBox(height: 20),
             isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : MyButton(onTab: loginUsers, text: "Log In"),
+                : MyButton(onTab: loginUsers, text: "Entrar"),
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Text(
-                  "Dont't have an accunt?",
+                  "Não tem uma conta?",
                   style: TextStyle(fontSize: 16),
                 ),
                 GestureDetector(
@@ -161,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     );
                   },
                   child: const Text(
-                    " SignUp",
+                    " Cadastre-se",
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 ),
@@ -196,7 +175,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     );
                   } else {
                     await NotificationService().saveTokenToDatabase();
-                    await _handlePostLogin(); // Chama para lidar com a navegação pós-login
+                    await _handlePostLogin();
                   }
                 } else {
                   showSnackBar(context, "Erro ao fazer login com Google");
@@ -213,14 +192,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Text(
-                    "Continue with Google",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                      color: Colors.white,
+                  // --- INÍCIO DA CORREÇÃO ---
+                  Flexible(
+                    // 1. Envolva o Text com Flexible
+                    child: const Text(
+                      "Continuar com o Google",
+                      textAlign:
+                          TextAlign.center, // 2. (Opcional) Centralize o texto
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18, // 3. (Opcional) Reduza um pouco a fonte
+                        color: Colors.white,
+                      ),
                     ),
                   ),
+                  // --- FIM DA CORREÇÃO ---
                 ],
               ),
             ),

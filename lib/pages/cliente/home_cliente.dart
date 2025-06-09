@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Importe o FirebaseAuth
 import 'package:firebase_database/firebase_database.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:myturn/pages/cliente/map_view_screen.dart';
 import 'fila_ativa.dart';
 import 'package:myturn/models/estabelecimento_model.dart';
+
 // O scanner ainda não foi implementado, então podemos deixar o import comentado ou removê-lo por enquanto.
 // import 'package:myturn/pages/cliente/qr_scanner_screen.dart';
 
@@ -28,6 +30,13 @@ class _HomeScreenState extends State<HomeScreen> {
   List<EstabelecimentoModel> _todosEstabelecimentos = [];
   List<EstabelecimentoModel> _estabelecimentosFiltrados = [];
 
+  // --- INÍCIO DAS ALTERAÇÕES ---
+
+  // 1. Variável para manter a "escuta" das reservas do usuário
+  StreamSubscription<DatabaseEvent>? _reservasSubscription;
+
+  // --- FIM DAS ALTERAÇÕES ---
+
   final List<String> categorias = [
     "Todos",
     "Restaurante",
@@ -49,14 +58,78 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _searchController.addListener(_filtrarEstabelecimentos);
     _iniciarBuscaDeLocalizacao();
+    // --- INÍCIO DAS ALTERAÇÕES ---
+    // 2. Inicia o listener para receber o aviso de chamada
+    _iniciarListenerDeChamada();
+    // --- FIM DAS ALTERAÇÕES ---
   }
 
   @override
   void dispose() {
+    // --- INÍCIO DAS ALTERAÇÕES ---
+    // 3. Cancela o listener ao sair da tela para evitar erros
+    _reservasSubscription?.cancel();
+    // --- FIM DAS ALTERAÇÕES ---
     _searchController.removeListener(_filtrarEstabelecimentos);
     _searchController.dispose();
     super.dispose();
   }
+
+  // --- INÍCIO DAS ALTERAÇÕES ---
+
+  // 4. Método que configura o "ouvinte" e dispara o pop-up
+  void _iniciarListenerDeChamada() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final minhasReservasRef = FirebaseDatabase.instance.ref(
+      'minhasReservasPorUsuario/${user.uid}',
+    );
+
+    // O listener 'onChildRemoved' é acionado sempre que uma reserva é removida
+    _reservasSubscription = minhasReservasRef.onChildRemoved.listen((event) {
+      final idEstabelecimentoRemovido = event.snapshot.key;
+      if (idEstabelecimentoRemovido != null) {
+        // Se a reserva foi removida, o cliente foi chamado!
+        // Mostramos o pop-up.
+        _exibirPopupDeChamada(idEstabelecimentoRemovido);
+      }
+    });
+  }
+
+  // 5. Método para buscar o nome do estabelecimento e mostrar o diálogo
+  Future<void> _exibirPopupDeChamada(String estabelecimentoId) async {
+    // Garante que o widget ainda está na tela antes de mostrar o diálogo
+    if (!mounted) return;
+
+    // Busca o nome do estabelecimento para a mensagem ficar mais clara
+    final nomeEstabelecimentoSnapshot =
+        await FirebaseDatabase.instance
+            .ref('estabelecimentos/$estabelecimentoId/name')
+            .get();
+
+    final nome =
+        nomeEstabelecimentoSnapshot.value as String? ?? 'um estabelecimento';
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text("É a sua vez! 📣"),
+            content: Text(
+              "Sua vez chegou no $nome. Por favor, dirija-se ao atendimento.",
+            ),
+            actions: [
+              TextButton(
+                child: const Text("OK"),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // --- FIM DAS ALTERAÇÕES ---
 
   Future<void> _iniciarBuscaDeLocalizacao() async {
     bool servicoHabilitado = await Geolocator.isLocationServiceEnabled();
@@ -114,8 +187,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // ALTERAÇÃO: A função agora carrega apenas os dados estáticos dos estabelecimentos.
-  // As informações da fila (status e contagem) serão responsabilidade de cada card individualmente.
   Future<void> _carregarEstabelecimentos() async {
     if (cidade == null || estado == null) return;
     if (mounted) setState(() => _isLoading = true);
@@ -144,8 +215,6 @@ class _HomeScreenState extends State<HomeScreen> {
       if (dadosMap['cidade']?.toString().toLowerCase() ==
               cidade!.toLowerCase() &&
           dadosMap['estado'] == estado) {
-        // Apenas criamos o modelo com os dados que já temos.
-        // O card cuidará do resto.
         estabelecimentosTemp.add(
           EstabelecimentoModel.fromMap(dadosMap..['uid'] = id),
         );
@@ -155,6 +224,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) {
       setState(() {
         _todosEstabelecimentos = estabelecimentosTemp;
+        _estabelecimentosFiltrados =
+            estabelecimentosTemp; // Inicializa com todos
+        _isLoading = false;
       });
       _filtrarEstabelecimentos();
     }
@@ -163,17 +235,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void _filtrarEstabelecimentos() {
     List<EstabelecimentoModel> filtrados =
         _todosEstabelecimentos.where((est) {
-          // 1. Verifica se a categoria corresponde OU se "Todos" está selecionado
           final correspondeCategoria =
               _categoriaSelecionada == "Todos" ||
               est.categoria == _categoriaSelecionada;
 
-          // 2. Verifica se o texto de busca corresponde ao nome do estabelecimento
           final correspondeBusca = est.name.toLowerCase().contains(
             _searchController.text.toLowerCase(),
           );
 
-          // O estabelecimento é exibido se corresponder a AMBAS as condições
           return correspondeCategoria && correspondeBusca;
         }).toList();
 
@@ -216,8 +285,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      // O botão do scanner pode ser adicionado aqui depois.
-      // floatingActionButton: FloatingActionButton(...)
       body: Column(
         children: [
           _buildHeader(),
@@ -340,9 +407,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// =========================================================================
-// ALTERAÇÃO PRINCIPAL: O CARD AGORA É STATEFUL E ESCUTA MUDANÇAS EM TEMPO REAL
-// =========================================================================
 class EstabelecimentoCard extends StatefulWidget {
   final EstabelecimentoModel estabelecimento;
 
@@ -353,38 +417,31 @@ class EstabelecimentoCard extends StatefulWidget {
 }
 
 class _EstabelecimentoCardState extends State<EstabelecimentoCard> {
-  // Variáveis de estado para os dados em tempo real
   late bool _filaAberta;
   late int _contagemFila;
 
-  // Controladores dos listeners para poder cancelá-los depois
   StreamSubscription? _statusSubscription;
   StreamSubscription? _contagemSubscription;
 
   @override
   void initState() {
     super.initState();
-    // 1. Inicializa o estado com os dados recebidos para exibição imediata
     _filaAberta = widget.estabelecimento.filaAberta;
-    _contagemFila = 0; // Começa com 0 até o listener trazer o valor real
+    _contagemFila = 0;
 
-    // 2. Inicia os listeners para os dados em tempo real
     final dbRef = FirebaseDatabase.instance.ref();
 
-    // Listener para o status da fila (aberta/fechada)
     _statusSubscription = dbRef
         .child('estabelecimentos/${widget.estabelecimento.uid}/filaAberta')
         .onValue
         .listen((event) {
           if (mounted) {
-            // Garante que o widget ainda está na tela
             setState(() {
               _filaAberta = (event.snapshot.value as bool?) ?? false;
             });
           }
         });
 
-    // Listener para a contagem de pessoas na fila
     _contagemSubscription = dbRef
         .child('filas/${widget.estabelecimento.uid}/clientes')
         .onValue
@@ -399,7 +456,6 @@ class _EstabelecimentoCardState extends State<EstabelecimentoCard> {
 
   @override
   void dispose() {
-    // 3. Cancela os listeners quando o widget é removido da tela para evitar erros
     _statusSubscription?.cancel();
     _contagemSubscription?.cancel();
     super.dispose();
@@ -451,7 +507,6 @@ class _EstabelecimentoCardState extends State<EstabelecimentoCard> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 4. A UI agora usa as variáveis de ESTADO (_filaAberta, _contagemFila)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,

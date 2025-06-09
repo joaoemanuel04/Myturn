@@ -1,3 +1,5 @@
+// lib/esqueceu_senha/esqueceu_senha.dart
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:myturn/Widget/snack_bar.dart';
@@ -56,8 +58,8 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(),
-                    Text(
-                      "Forgot Your Password",
+                    const Text(
+                      "Esqueceu sua senha?",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 18,
@@ -76,33 +78,38 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                   controller: emailController,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
-                    labelText: "Enter the Email",
-                    hintText: "eg abc@gmail.com",
+                    labelText: "Digite o Email",
+                    hintText: "ex: abc@gmail.com",
                   ),
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
                   onPressed: () async {
-                    await auth
-                        .sendPasswordResetEmail(
-                          email: emailController.text.trim(),
-                        )
-                        .then((value) {
-                          showSnackBar(
-                            context,
-                            "We have send you the reset password link to yout email id",
-                          );
-                        })
-                        .onError((error, stackTrace) {
-                          showSnackBar(context, error.toString());
-                        });
+                    if (emailController.text.trim().isEmpty) {
+                      showSnackBar(context, "Por favor, digite seu e-mail.");
+                      return;
+                    }
+                    try {
+                      await auth.sendPasswordResetEmail(
+                        email: emailController.text.trim(),
+                      );
+                      showSnackBar(
+                        context,
+                        "Link para redefinição de senha enviado para o seu e-mail.",
+                      );
+                    } catch (error) {
+                      showSnackBar(
+                        context,
+                        "Erro ao enviar e-mail. Verifique o endereço e tente novamente.",
+                      );
+                    }
 
                     Navigator.pop(context);
                     emailController.clear();
                   },
                   child: const Text(
-                    "Send",
+                    "Enviar",
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
