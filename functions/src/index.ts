@@ -4,13 +4,12 @@ import * as admin from "firebase-admin";
 admin.initializeApp();
 const db = admin.database();
 
-// ALTERAÇÃO: Trocamos a região para a principal dos EUA
 const region = "us-central1";
 
 export const onClientRemoved = onValueDeleted(
   {
     ref: "/filas/{establishmentId}/clientes/{clientId}",
-    region: region, // Usando a nova região
+    region: region,
   },
   async (event) => {
     const {establishmentId, clientId} = event.params;
@@ -55,23 +54,36 @@ export const onClientRemoved = onValueDeleted(
       await db.ref(`/estabelecimentos/${establishmentId}/name`).get();
     const establishmentName = establishmentSnapshot.val() || "o estabelecimento";
 
-    const payload = {
-      notification: {
-        title: "Sua vez está chegando! 🎉",
-        body:
-          `Você é o próximo na fila do ${establishmentName}. Prepare-se!`,
-        sound: "default",
-      },
-      data: {
-        click_action: "FLUTTER_NOTIFICATION_CLICK",
-        screen: "fila_ativa",
-        establishmentId: establishmentId,
-      },
-    };
-
     try {
-      await admin.messaging().sendToDevice(fcmToken, payload);
+      // ✅ AJUSTE FINAL NA ESTRUTURA DA MENSAGEM
+      const message = {
+        notification: {
+          title: "Sua vez está chegando! 🎉",
+          body: `Você é o próximo na fila do ${establishmentName}. Prepare-se!`,
+        },
+        data: {
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+          screen: "fila_ativa",
+          establishmentId: establishmentId,
+        },
+        token: fcmToken,
+        android: {
+          notification: {
+            sound: "default",
+          },
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: "default",
+            },
+          },
+        },
+      };
+
+      await admin.messaging().send(message);
       console.log("Notificação enviada com sucesso!");
+
     } catch (error) {
       console.error("Erro ao enviar notificação:", error);
     }

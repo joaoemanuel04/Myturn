@@ -10,9 +10,9 @@ plugins {
 
 import java.util.Properties
 
-// PASSO 2: O CÓDIGO QUE LÊ O ARQUIVO VAI AQUI, FORA DO BLOCO 'android'
 val localProperties = Properties()
-val localPropertiesFile = rootProject.file("../local.properties")
+// O caminho correto é este:
+val localPropertiesFile = rootProject.file("local.properties") 
 if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.reader())
 }

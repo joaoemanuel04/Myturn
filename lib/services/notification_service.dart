@@ -1,10 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart'; // Importe para usar o debugPrint
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  print(
+  debugPrint(
     "Notificação em Segundo Plano recebida: ${message.notification?.title}",
   );
 }
@@ -12,36 +13,60 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 class NotificationService {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
 
-  Future<void> initNotifications() async {
-    await _firebaseMessaging.requestPermission();
+  /// Verifica o status da permissão e, se necessário, solicita ao usuário.
+  Future<void> requestNotificationPermission() async {
+    NotificationSettings settings =
+        await _firebaseMessaging.getNotificationSettings();
 
+    // ADICIONAMOS LOGS PARA DIAGNÓSTICO
+    debugPrint("--- diagnóstico de permissão de notificação ---");
+    debugPrint(
+      "Status da permissão ANTES de pedir: ${settings.authorizationStatus}",
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.notDetermined) {
+      debugPrint("Permissão ainda não foi determinada. Solicitando...");
+      settings = await _firebaseMessaging.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true,
+      );
+    }
+
+    debugPrint(
+      "Status da permissão DEPOIS de pedir: ${settings.authorizationStatus}",
+    );
+    debugPrint("--- fim do diagnóstico ---");
+  }
+
+  /// Inicializa os listeners para mensagens e token.
+  Future<void> initNotifications() async {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print(
+      debugPrint(
         'Notificação em Primeiro Plano recebida: ${message.notification?.title}',
       );
     });
 
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-    // Agora a chamada corresponde à definição da função
     _firebaseMessaging.onTokenRefresh.listen((String token) {
-      saveTokenToDatabase(token); // Passando o novo token diretamente
+      saveTokenToDatabase(token);
     });
   }
 
-  // MÉTODO CORRIGIDO
-  // Agora ele aceita um token como argumento opcional.
+  /// Salva o token FCM no banco de dados.
   Future<void> saveTokenToDatabase([String? newToken]) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // LÓGICA CORRIGIDA:
-    // 1. Se um 'newToken' foi passado (pelo onTokenRefresh), usa ele.
-    // 2. Se não, busca o token atual do dispositivo (usado após o login).
     final String? tokenToSave = newToken ?? await _firebaseMessaging.getToken();
 
     if (tokenToSave == null) {
-      print("Não foi possível obter ou encontrar o token FCM para salvar.");
+      debugPrint("Não foi possível obter o token FCM para salvar.");
       return;
     }
 
@@ -49,6 +74,6 @@ class NotificationService {
       'users/${user.uid}/fcmToken',
     );
     await tokenRef.set(tokenToSave);
-    print("Token FCM salvo para o usuário: ${user.uid}");
+    debugPrint("Token FCM salvo para o usuário: ${user.uid}");
   }
 }
