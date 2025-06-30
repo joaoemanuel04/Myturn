@@ -1,6 +1,5 @@
 # MyTurn: Sistema de Gerenciamento de Filas Digitais
 
-![Logo do MyTurn](https://i.imgur.com/r3b026n.png)
 
 ## Evite filas, otimize seu tempo.
 
