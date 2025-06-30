@@ -45,8 +45,6 @@ O projeto foi construído com uma arquitetura moderna e escalável:
     -   **Notificações e Lógica de Servidor:** Cloud Functions e Firebase Cloud Messaging (FCM).
 -   **Geolocalização:** Google Maps Platform.
 
-![Arquitetura do Sistema](https://i.imgur.com/k6KbyyS.png)
-
 ## Pontos Fortes e Fracos
 
 ### Pontos Fortes
